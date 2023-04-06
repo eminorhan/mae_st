@@ -1,4 +1,4 @@
-## Masked Autoencoders As Spatiotemporal Learners: A PyTorch Implementation
+## Masked Autoencoders As Spatiotemporal Learners
 
 This is my personal copy of Facebook's [Spatiotemporal Masked Autoencoders](https://github.com/facebookresearch/mae_st) repository customized for my own purposes. The code here can be used for doing video-based SSL.
 
