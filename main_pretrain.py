@@ -13,17 +13,15 @@ import datetime
 import json
 import os
 import time
-
-import mae_st.util.misc as misc
-
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 from iopath.common.file_io import g_pathmgr as pathmgr
-from mae_st import models_mae
-from mae_st.engine_pretrain import train_one_epoch
-from mae_st.util.kinetics import Kinetics
-from mae_st.util.misc import NativeScalerWithGradNormCount as NativeScaler
+import util.misc as misc
+import models_mae
+from engine_pretrain import train_one_epoch
+from util.kinetics import Kinetics
+from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
 def get_args_parser():
     parser = argparse.ArgumentParser("Spatiotemporal MAE pre-training", add_help=False)
@@ -87,7 +85,7 @@ def get_args_parser():
     parser.add_argument("--pred_t_dim", type=int, default=8)
     parser.add_argument("--cls_embed", action="store_true")
     parser.set_defaults(cls_embed=True)
-    
+
     return parser
 
 def main(args):

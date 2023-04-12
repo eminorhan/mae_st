@@ -11,23 +11,19 @@
 
 import builtins
 import datetime
-import math
 import os
 import time
 from collections import defaultdict, deque, OrderedDict
 
-import mae_st.util.logging as logging
 import psutil
 import torch
 import torch.distributed as dist
-import torch.fb.rendezvous.zeus
 from iopath.common.file_io import g_pathmgr as pathmgr
-from mae_st.util.logging import master_print as print
+from util.logging import master_print as print
+from util.logging import get_logger
 from torch import inf
 
-
-logger = logging.get_logger(__name__)
-
+logger = get_logger(__name__)
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a

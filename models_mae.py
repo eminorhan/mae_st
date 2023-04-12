@@ -14,8 +14,8 @@ from functools import partial
 
 import torch
 import torch.nn as nn
-from mae_st.util import video_vit
-from mae_st.util.logging import master_print as print
+from util import video_vit
+from util.logging import master_print as print
 
 
 class MaskedAutoencoderViT(nn.Module):
