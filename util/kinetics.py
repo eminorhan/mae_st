@@ -1,7 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 
-
 import os
 import random
 
@@ -15,7 +14,6 @@ from torchvision import transforms
 from .decoder import decoder as decoder, utils as utils, video_container as container
 from .decoder.random_erasing import RandomErasing
 from .decoder.transform import create_random_augment
-
 
 class Kinetics(torch.utils.data.Dataset):
     """
@@ -99,9 +97,7 @@ class Kinetics(torch.utils.data.Dataset):
         self.jitter_aspect_relative = jitter_aspect_relative
         self.jitter_scales_relative = jitter_scales_relative
 
-        print(
-            f"jitter_aspect_relative {jitter_aspect_relative} jitter_scales_relative {jitter_scales_relative}"
-        )
+        print(f"jitter_aspect_relative {jitter_aspect_relative} jitter_scales_relative {jitter_scales_relative}")
 
         self._repeat_aug = repeat_aug
         self._video_meta = {}
@@ -130,10 +126,9 @@ class Kinetics(torch.utils.data.Dataset):
         print(self)
         print(locals())
 
-        # For training or validation mode, one single clip is sampled from every
-        # video. For testing, NUM_ENSEMBLE_VIEWS clips are sampled from every
-        # video. For every clip, NUM_SPATIAL_CROPS is cropped spatially from
-        # the frames.
+        # For training or validation mode, one single clip is sampled from every video. 
+        # For testing, NUM_ENSEMBLE_VIEWS clips are sampled from every video. 
+        # For every clip, NUM_SPATIAL_CROPS is cropped spatially from the frames.
         if self.mode in ["pretrain", "finetune", "val"]:
             self._num_clips = 1
         elif self.mode in ["test"]:
@@ -160,10 +155,8 @@ class Kinetics(torch.utils.data.Dataset):
             "val": "val",
             "test": "test",
         }
-        path_to_file = os.path.join(
-            self._path_to_data_dir,
-            "{}.csv".format(csv_file_name[self.mode]),
-        )
+
+        path_to_file = os.path.join(self._path_to_data_dir, "{}.csv".format(csv_file_name[self.mode]))
         assert pathmgr.exists(path_to_file), "{} dir not found".format(path_to_file)
 
         self._path_to_videos = []
@@ -178,16 +171,9 @@ class Kinetics(torch.utils.data.Dataset):
                     self._labels.append(int(label))
                     self._spatial_temporal_idx.append(idx)
                     self._video_meta[clip_idx * self._num_clips + idx] = {}
-        assert (
-            len(self._path_to_videos) > 0
-        ), "Failed to load Kinetics split {} from {}".format(
-            self._split_idx, path_to_file
-        )
-        print(
-            "Constructing kinetics dataloader (size: {}) from {}".format(
-                len(self._path_to_videos), path_to_file
-            )
-        )
+
+        assert (len(self._path_to_videos) > 0), "Failed to load Kinetics split {} from {}".format(self._split_idx, path_to_file)
+        print("Constructing kinetics dataloader (size: {}) from {}".format(len(self._path_to_videos), path_to_file))
 
     def __getitem__(self, index):
         """
