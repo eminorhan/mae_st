@@ -17,16 +17,16 @@ export WORLD_SIZE=2
 # vit-h/14
 srun python -u /scratch/eo41/mae_st/run_pretrain.py \
     --path_to_data_dir /vast/eo41/data_video/SAY \
-    --batch_size 2 \
-    --model mae_vit_large_patch16 \
+    --batch_size 4 \
+    --model mae_vit_huge_patch14 \
     --epochs 100 \
     --num_frames 16 \
     --decoder_embed_dim 512 \
     --decoder_depth 4 \
     --pin_mem \
-    --num_workers 4 \
+    --num_workers 8 \
     --t_patch_size 2 \
-    --repeat_aug 4 \
+    --repeat_aug 8 \
     --sampling_rate 4 \
     --norm_pix_loss \
     --blr 1.6e-3 \
