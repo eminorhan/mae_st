@@ -2,15 +2,13 @@
 # All rights reserved.
 
 
-import mae_st.util.logging as logging
 import torch
 import torch.nn as nn
 from timm.models.layers import to_2tuple
 from timm.models.vision_transformer import DropPath, Mlp
+from util.logging import get_logger
 
-
-logger = logging.get_logger(__name__)
-
+logger = get_logger(__name__)
 
 class PatchEmbed(nn.Module):
     """Image to Patch Embedding"""

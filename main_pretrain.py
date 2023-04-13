@@ -13,10 +13,11 @@ import datetime
 import json
 import os
 import time
-import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 from iopath.common.file_io import g_pathmgr as pathmgr
+from pathlib import Path
+
 import util.misc as misc
 import models_mae
 from engine_pretrain import train_one_epoch
@@ -42,7 +43,7 @@ def get_args_parser():
     parser.add_argument("--blr", type=float, default=1e-3, help="base learning rate: absolute_lr = base_lr * total_batch_size / 256")
     parser.add_argument("--min_lr", type=float, default=0.0, help="lower lr bound for cyclic schedulers that hit 0")
     parser.add_argument("--warmup_epochs", type=int, default=40, help="epochs to warmup LR")
-    parser.add_argument("--path_to_data_dir", default="", help="path where to save, empty for no saving")
+    parser.add_argument("--path_to_data_dir", default="", help="data path")
     parser.add_argument("--output_dir", default="./output_dir", help="path where to save, empty for no saving")
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")
     parser.add_argument("--seed", default=0, type=int)
@@ -55,10 +56,7 @@ def get_args_parser():
     parser.set_defaults(pin_mem=True)
 
     # Distributed training parameters
-    parser.add_argument("--world_size", default=1, type=int, help="number of distributed processes")
     parser.add_argument("--local_rank", default=-1, type=int)
-    parser.add_argument("--dist_on_itp", action="store_true")
-    parser.add_argument("--no_env", action="store_true")
     parser.add_argument("--dist_url", default="env://", help="url used to set up distributed training")
 
     # Video related configs
@@ -69,7 +67,6 @@ def get_args_parser():
     parser.add_argument("--num_frames", default=16, type=int)
     parser.add_argument("--checkpoint_period", default=1, type=int)
     parser.add_argument("--sampling_rate", default=4, type=int)
-    parser.add_argument("--distributed", action="store_true")
     parser.add_argument("--repeat_aug", default=4, type=int)
     parser.add_argument("--no_qkv_bias", action="store_true")
     parser.add_argument("--bias_wd", action="store_true")
@@ -95,10 +92,10 @@ def main(args):
     print("{}".format(args).replace(", ", ",\n"))
     device = torch.device(args.device)
 
-    # fix the seed for reproducibility
-    seed = args.seed + misc.get_rank()
-    torch.manual_seed(seed)
-    np.random.seed(seed)
+    # # fix the seed for reproducibility
+    # seed = args.seed + misc.get_rank()
+    # torch.manual_seed(seed)
+    # np.random.seed(seed)
     cudnn.benchmark = True
 
     dataset_train = Kinetics(
@@ -112,15 +109,10 @@ def main(args):
         jitter_scales_relative=args.jitter_scales_relative,
     )
 
-    if args.distributed:
-        num_tasks = misc.get_world_size()
-        global_rank = misc.get_rank()
-        sampler_train = torch.utils.data.DistributedSampler(dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True)
-        print("Sampler_train = %s" % str(sampler_train))
-    else:
-        num_tasks = 1
-        global_rank = 0
-        sampler_train = torch.utils.data.RandomSampler(dataset_train)
+    num_tasks = misc.get_world_size()
+    global_rank = misc.get_rank()
+    sampler_train = torch.utils.data.DistributedSampler(dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True)
+    print("Sampler_train = %s" % str(sampler_train))
 
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train,
@@ -149,9 +141,8 @@ def main(args):
     print("accumulate grad iterations: %d" % args.accum_iter)
     print("effective batch size: %d" % eff_batch_size)
 
-    if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[torch.cuda.current_device()])
-        model_without_ddp = model.module
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[torch.cuda.current_device()])
+    model_without_ddp = model.module
 
     # following timm: set wd as 0 for bias and norm layers
     param_groups = misc.add_weight_decay(model_without_ddp, args.weight_decay, bias_wd=args.bias_wd)
@@ -170,8 +161,7 @@ def main(args):
 
     for epoch in range(args.start_epoch, args.epochs):
         
-        if args.distributed:
-            data_loader_train.sampler.set_epoch(epoch)
+        data_loader_train.sampler.set_epoch(epoch)
 
         train_stats = train_one_epoch(
             model,
@@ -207,23 +197,29 @@ def main(args):
     print(torch.cuda.memory_allocated())
     return [checkpoint_path]
 
-def launch_one_thread(
-    local_rank,
-    shard_rank,
-    num_gpus_per_node,
-    num_shards,
-    init_method,
-    output_path,
-    opts,
-    stats_queue,
-):
-    print(opts)
+if __name__ == '__main__':
     args = get_args_parser()
-    args = args.parse_args(opts)
-    args.rank = shard_rank * num_gpus_per_node + local_rank
-    args.world_size = num_shards * num_gpus_per_node
-    args.gpu = local_rank
-    args.dist_url = init_method
-    args.output_dir = output_path
-    output = main(args)
-    stats_queue.put(output)
+    args = args.parse_args()
+    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    main(args)
+
+# def launch_one_thread(
+#     local_rank,
+#     shard_rank,
+#     num_gpus_per_node,
+#     num_shards,
+#     init_method,
+#     output_path,
+#     opts,
+#     stats_queue,
+# ):
+#     print(opts)
+#     args = get_args_parser()
+#     args = args.parse_args(opts)
+#     args.rank = shard_rank * num_gpus_per_node + local_rank
+#     args.world_size = num_shards * num_gpus_per_node
+#     args.gpu = local_rank
+#     args.dist_url = init_method
+#     args.output_dir = output_path
+#     output = main(args)
+#     stats_queue.put(output)

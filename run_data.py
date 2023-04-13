@@ -1,5 +1,4 @@
 import os
-import csv
 
 # Function to recursively search for .mp4 files in a directory and its subdirectories
 def find_mp4_files(directory):
@@ -13,14 +12,8 @@ def find_mp4_files(directory):
 # Function to write the .csv file with video path and subfolder index
 def write_csv(video_files, save_name):
     with open(f'{save_name}.csv', 'w', newline='') as csvfile:
-        fieldnames = ['Path', 'Subfolder Index']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        subfolder_indices = {}
         for video_file, subfolder in video_files:
-            if subfolder not in subfolder_indices:
-                subfolder_indices[subfolder] = len(subfolder_indices) + 1
-            writer.writerow({'Path': video_file, 'Subfolder Index': subfolder_indices[subfolder]})
+            csvfile.write(f"{video_file} {1}\n")
 
 # Main function to search for .mp4 files and write the .csv file
 def main():

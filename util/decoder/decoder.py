@@ -108,7 +108,9 @@ def decode(
     try:
         assert clip_idx >= -1, "Not valied clip_idx {}".format(clip_idx)
         # Convert the bytes to a tensor.
-        video_tensor = torch.from_numpy(np.frombuffer(container, dtype=np.uint8))
+        buff_arr = np.frombuffer(container, dtype=np.uint8)
+        copy_arr = np.copy(buff_arr)
+        video_tensor = torch.from_numpy(copy_arr)
 
         decode_all_video = True
         video_start_pts, video_end_pts = 0, -1

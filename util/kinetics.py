@@ -8,7 +8,7 @@ import torch
 import torch.utils.data
 
 from iopath.common.file_io import g_pathmgr as pathmgr
-from mae_st.util.decoder.decoder import get_start_end_idx, temporal_sampling
+from util.decoder.decoder import get_start_end_idx, temporal_sampling
 from torchvision import transforms
 
 from .decoder import decoder as decoder, utils as utils, video_container as container
@@ -164,6 +164,7 @@ class Kinetics(torch.utils.data.Dataset):
         self._spatial_temporal_idx = []
         with pathmgr.open(path_to_file, "r") as f:
             for clip_idx, path_label in enumerate(f.read().splitlines()):
+                print(path_label)
                 assert len(path_label.split()) == 2
                 path, label = path_label.split()
                 for idx in range(self._num_clips):
@@ -224,10 +225,7 @@ class Kinetics(torch.utils.data.Dataset):
         for i_try in range(self._num_retries):
             video_container = None
             try:
-                video_container = container.get_video_container(
-                    self._path_to_videos[index],
-                    self._enable_multi_thread_decode,
-                )
+                video_container = container.get_video_container(self._path_to_videos[index])
             except Exception as e:
                 print(
                     "Failed to load video from {} with error {}".format(
