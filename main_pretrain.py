@@ -29,6 +29,7 @@ def get_args_parser():
     parser.add_argument("--batch_size", default=4, type=int, help="Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus")
     parser.add_argument("--epochs", default=100, type=int)
     parser.add_argument("--accum_iter", default=1, type=int, help="Accumulate gradient iterations (for increasing the effective batch size under memory constraints)")
+    parser.add_argument("--save_prefix", default="", type=str, help="""prefix for saving checkpoint and log files""")
 
     # Model parameters
     parser.add_argument("--model", default="mae_vit_large_patch16", type=str, help="Name of model to train")
@@ -46,7 +47,6 @@ def get_args_parser():
     parser.add_argument("--path_to_data_dir", default="", help="data path")
     parser.add_argument("--output_dir", default="./output_dir", help="path where to save, empty for no saving")
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")
-    parser.add_argument("--seed", default=0, type=int)
     parser.add_argument("--resume", default="", help="resume from checkpoint")
     parser.add_argument("--clip_grad", type=float, default=None)
     parser.add_argument("--start_epoch", default=0, type=int, help="start epoch")
@@ -91,11 +91,6 @@ def main(args):
     print("job dir: {}".format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(", ", ",\n"))
     device = torch.device(args.device)
-
-    # # fix the seed for reproducibility
-    # seed = args.seed + misc.get_rank()
-    # torch.manual_seed(seed)
-    # np.random.seed(seed)
     cudnn.benchmark = True
 
     dataset_train = Kinetics(
@@ -176,19 +171,12 @@ def main(args):
         )
 
         if args.output_dir and (epoch % args.checkpoint_period == 0 or epoch + 1 == args.epochs):
-            checkpoint_path = misc.save_model(
-                args=args,
-                model=model,
-                model_without_ddp=model_without_ddp,
-                optimizer=optimizer,
-                loss_scaler=loss_scaler,
-                epoch=epoch,
-            )
+            checkpoint_path = misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
 
         log_stats = {**{f"train_{k}": v for k, v in train_stats.items()}, "epoch": epoch}
 
         if args.output_dir and misc.is_main_process():
-            with pathmgr.open(f"{args.output_dir}/log.txt", "a") as f:
+            with pathmgr.open(f"{args.output_dir} / {args.save_prefix}_log.txt", "a") as f:
                 f.write(json.dumps(log_stats) + "\n")
 
     total_time = time.time() - start_time
@@ -202,24 +190,3 @@ if __name__ == '__main__':
     args = args.parse_args()
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)
-
-# def launch_one_thread(
-#     local_rank,
-#     shard_rank,
-#     num_gpus_per_node,
-#     num_shards,
-#     init_method,
-#     output_path,
-#     opts,
-#     stats_queue,
-# ):
-#     print(opts)
-#     args = get_args_parser()
-#     args = args.parse_args(opts)
-#     args.rank = shard_rank * num_gpus_per_node + local_rank
-#     args.world_size = num_shards * num_gpus_per_node
-#     args.gpu = local_rank
-#     args.dist_url = init_method
-#     args.output_dir = output_path
-#     output = main(args)
-#     stats_queue.put(output)

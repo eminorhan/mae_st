@@ -328,8 +328,8 @@ def get_grad_norm_(parameters, norm_type: float = 2.0) -> torch.Tensor:
     return total_norm
 
 
-def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler):
-    checkpoint_path = "{}/checkpoint-{:05d}.pth".format(args.output_dir, epoch)
+def save_model(args, epoch, model_without_ddp, optimizer, loss_scaler):
+    checkpoint_path = f"{args.output_dir} / {args.save_prefix}.pth"
     to_save = {
         "model": model_without_ddp.state_dict(),
         "optimizer": optimizer.state_dict(),
@@ -337,7 +337,6 @@ def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler):
         "scaler": loss_scaler.state_dict(),
         "args": args,
     }
-
     save_on_master(to_save, checkpoint_path)
     return checkpoint_path
 
