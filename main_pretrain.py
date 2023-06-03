@@ -26,7 +26,7 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
 def get_args_parser():
     parser = argparse.ArgumentParser("Spatiotemporal MAE pre-training", add_help=False)
-    parser.add_argument("--batch_size", default=4, type=int, help="Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus")
+    parser.add_argument("--batch_size_per_gpu", default=4, type=int, help="Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus")
     parser.add_argument("--epochs", default=100, type=int)
     parser.add_argument("--accum_iter", default=1, type=int, help="Accumulate gradient iterations (for increasing the effective batch size under memory constraints)")
     parser.add_argument("--save_prefix", default="", type=str, help="""prefix for saving checkpoint and log files""")
@@ -93,6 +93,7 @@ def main(args):
     device = torch.device(args.device)
     cudnn.benchmark = True
 
+    # data pipeline
     dataset_train = Kinetics(
         mode="pretrain",
         path_to_data_dir=args.path_to_data_dir,
@@ -112,7 +113,7 @@ def main(args):
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train,
         sampler=sampler_train,
-        batch_size=args.batch_size,
+        batch_size=args.batch_size_per_gpu,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
         drop_last=True,
@@ -123,9 +124,10 @@ def main(args):
     model.to(device)
     model_without_ddp = model
     print("Model = %s" % str(model_without_ddp))
+    print('number of params (M): %.2f' % (sum(p.numel() for p in model_without_ddp.parameters() if p.requires_grad) / 1.e6))
 
     # effective batch size
-    eff_batch_size = args.batch_size * args.accum_iter * misc.get_world_size()
+    eff_batch_size = args.batch_size_per_gpu * args.accum_iter * misc.get_world_size()
 
     if args.lr is None:  # only base_lr is specified
         args.lr = args.blr * eff_batch_size / 256
