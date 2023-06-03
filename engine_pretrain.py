@@ -11,7 +11,6 @@
 import math
 from typing import Iterable
 
-import util.lr_sched as lr_sched
 import util.misc as misc
 import torch
 from iopath.common.file_io import g_pathmgr as pathmgr
@@ -35,7 +34,7 @@ def train_one_epoch(
     metric_logger.add_meter("gpu_mem", misc.SmoothedValue(window_size=1, fmt="{value:.6f}"))
     metric_logger.add_meter("mask_ratio", misc.SmoothedValue(window_size=1, fmt="{value:.6f}"))
     header = "Epoch: [{}]".format(epoch)
-    print_freq = 20
+    print_freq = 100
 
     accum_iter = args.accum_iter
 
@@ -45,9 +44,6 @@ def train_one_epoch(
         print("log_dir: {}".format(log_writer.log_dir))
 
     for data_iter_step, (samples, _) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
-        # we use a per iteration (instead of per epoch) lr scheduler
-        # if data_iter_step % accum_iter == 0:
-        #     lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
 
         samples = samples.to(device, non_blocking=True)
         if len(samples.shape) == 6:

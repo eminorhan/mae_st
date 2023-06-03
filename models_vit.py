@@ -221,7 +221,7 @@ def vit_large_patch14(**kwargs):
 
 def vit_huge_patch14(**kwargs):
     model = VisionTransformer(
-        patch_size=16,
+        patch_size=14,
         embed_dim=1280,
         depth=32,
         num_heads=16,

@@ -34,7 +34,7 @@ def get_args_parser():
     # Model parameters
     parser.add_argument("--model", default="mae_vit_large_patch16", type=str, help="Name of model to train")
     parser.add_argument("--input_size", default=224, type=int, help="images input size")
-    parser.add_argument("--mask_ratio", default=0.75, type=float, help="Masking ratio (percentage of removed patches).")
+    parser.add_argument("--mask_ratio", default=0.9, type=float, help="Masking ratio (percentage of removed patches).")
     parser.add_argument("--norm_pix_loss", action="store_true", help="Use (per-patch) normalized pixels as targets for computing loss")
     parser.set_defaults(norm_pix_loss=False)
 
@@ -178,7 +178,7 @@ def main(args):
         log_stats = {**{f"train_{k}": v for k, v in train_stats.items()}, "epoch": epoch}
 
         if args.output_dir and misc.is_main_process():
-            with pathmgr.open(f"{args.output_dir} / {args.save_prefix}_log.txt", "a") as f:
+            with pathmgr.open(f"{args.output_dir}/{args.save_prefix}_log.txt", "a") as f:
                 f.write(json.dumps(log_stats) + "\n")
 
     total_time = time.time() - start_time
