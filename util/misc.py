@@ -148,7 +148,7 @@ class MetricLogger(object):
 
 def setup_for_distributed(is_master):
     """This function disables printing when not in master process"""
-    
+
     builtin_print = builtins.print
 
     def print(*args, **kwargs):
@@ -233,22 +233,12 @@ class NativeScalerWithGradNormCount:
     def __init__(self, fp32=False):
         self._scaler = torch.cuda.amp.GradScaler(enabled=not fp32)
 
-    def __call__(
-        self,
-        loss,
-        optimizer,
-        clip_grad=None,
-        parameters=None,
-        create_graph=False,
-        update_grad=True,
-    ):
+    def __call__(self, loss, optimizer, clip_grad=None, parameters=None, create_graph=False, update_grad=True):
         self._scaler.scale(loss).backward(create_graph=create_graph)
         if update_grad:
             if clip_grad is not None:
                 assert parameters is not None
-                self._scaler.unscale_(
-                    optimizer
-                )  # unscale the gradients of optimizer's assigned params in-place
+                self._scaler.unscale_(optimizer)  # unscale the gradients of optimizer's assigned params in-place
                 norm = torch.nn.utils.clip_grad_norm_(parameters, clip_grad)
             else:
                 self._scaler.unscale_(optimizer)
@@ -277,12 +267,7 @@ def get_grad_norm_(parameters, norm_type: float = 2.0) -> torch.Tensor:
     if norm_type == inf:
         total_norm = max(p.grad.detach().abs().max().to(device) for p in parameters)
     else:
-        total_norm = torch.norm(
-            torch.stack(
-                [torch.norm(p.grad.detach(), norm_type).to(device) for p in parameters]
-            ),
-            norm_type,
-        )
+        total_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), norm_type).to(device) for p in parameters]), norm_type)
     return total_norm
 
 
@@ -322,9 +307,7 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler):
         args.resume = get_last_checkpoint(args)
     if args.resume:
         if args.resume.startswith("https"):
-            checkpoint = torch.hub.load_state_dict_from_url(
-                args.resume, map_location="cpu", check_hash=True
-            )
+            checkpoint = torch.hub.load_state_dict_from_url(args.resume, map_location="cpu", check_hash=True)
         else:
             with pathmgr.open(args.resume, "rb") as f:
                 checkpoint = torch.load(f, map_location="cpu")

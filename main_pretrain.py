@@ -8,6 +8,7 @@
 # DeiT: https://github.com/facebookresearch/deit
 # BEiT: https://github.com/microsoft/unilm/tree/master/beit
 # --------------------------------------------------------
+import os
 import argparse
 import datetime
 import json
@@ -81,6 +82,21 @@ def get_args_parser():
     parser.set_defaults(cls_embed=True)
 
     return parser
+
+def find_mp4_files(directory):
+    """Recursively search for .mp4 files in a directory and its subdirectories"""
+    mp4_files = []
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.endswith(".mp4"):
+                mp4_files.append((os.path.join(root, file), os.path.basename(root)))
+    return mp4_files
+
+def write_csv(video_files, save_name):
+    """Write the .csv file with video path and subfolder index"""
+    with open(f'{save_name}.csv', 'w', newline='') as csvfile:
+        for video_file, _ in video_files:
+            csvfile.write(f"{video_file} {1}\n")
 
 def main(args):
     misc.init_distributed_mode(args)
@@ -170,4 +186,9 @@ if __name__ == '__main__':
     args = get_args_parser()
     args = args.parse_args()
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+
+    # prepare data files
+    video_files = find_mp4_files(directory=args.path_to_data_dir)
+    write_csv(video_files=video_files, save_name='train')
+
     main(args)
