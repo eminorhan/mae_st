@@ -25,7 +25,6 @@ class Kinetics(torch.utils.data.Dataset):
     and right crop if the width is larger than height, or take top, center, and
     bottom crop if the height is larger than the width.
     """
-
     def __init__(
         self,
         mode,

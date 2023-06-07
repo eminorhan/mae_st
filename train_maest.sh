@@ -6,8 +6,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=492GB
 #SBATCH --time=48:00:00
-#SBATCH --job-name=train_maest_say
-#SBATCH --output=train_maest_say_%A_%a.out
+#SBATCH --job-name=train_maest
+#SBATCH --output=train_maest_%A_%a.out
 #SBATCH --array=0
 
 export MASTER_ADDR=$(hostname -s)
@@ -16,14 +16,15 @@ export WORLD_SIZE=4
 
 # vit-b/16
 srun python -u /scratch/eo41/mae_st/run_pretrain.py \
-    --path_to_data_dir /vast/eo41/data_video/SAY \
+    --path_to_data_dir /scratch/eo41/data-video/minute/A \
+    --save_prefix "a_vith14_224_4" \
     --output_dir /scratch/eo41/mae_st/say_vith14 \
     --model mae_vit_huge_patch14 \
-    --save_prefix "say_vith14" \
     --resume "" \
     --batch_size_per_gpu 1 \
     --epochs 100 \
     --num_frames 16 \
+    --input_size 224 \
     --decoder_embed_dim 512 \
     --decoder_depth 4 \
     --pin_mem \
@@ -33,7 +34,6 @@ srun python -u /scratch/eo41/mae_st/run_pretrain.py \
     --sampling_rate 4 \
     --norm_pix_loss \
     --lr 0.0001 \
-    --warmup_epochs 5 \
     --mask_ratio 0.9 \
     --pred_t_dim 8 \
     --clip_grad 0.02

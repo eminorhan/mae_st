@@ -384,9 +384,7 @@ def color_normalization(images, mean, stddev):
     return out_images
 
 
-def _get_param_spatial_crop(
-    scale, ratio, height, width, num_repeat=10, log_scale=True, switch_hw=False
-):
+def _get_param_spatial_crop(scale, ratio, height, width, num_repeat=10, log_scale=True, switch_hw=False):
     """
     Given scale, ratio, height and width, return sampled coordinates of the videos.
     """
@@ -426,13 +424,7 @@ def _get_param_spatial_crop(
     return i, j, h, w
 
 
-def random_resized_crop(
-    images,
-    target_height,
-    target_width,
-    scale=(0.8, 1.0),
-    ratio=(3.0 / 4.0, 4.0 / 3.0),
-):
+def random_resized_crop(images, target_height, target_width, scale=(0.8, 1.0), ratio=(3.0 / 4.0, 4.0 / 3.0)):
     """
     Crop the given images to random size and aspect ratio. A crop of random
     size (default: of 0.08 to 1.0) of the original size and a random aspect
@@ -453,12 +445,7 @@ def random_resized_crop(
 
     i, j, h, w = _get_param_spatial_crop(scale, ratio, height, width)
     cropped = images[:, :, i : i + h, j : j + w]
-    return torch.nn.functional.interpolate(
-        cropped,
-        size=(target_height, target_width),
-        mode="bilinear",
-        align_corners=False,
-    )
+    return torch.nn.functional.interpolate(cropped, size=(target_height, target_width), mode="bilinear", align_corners=False)
 
 
 def random_resized_crop_with_shift(

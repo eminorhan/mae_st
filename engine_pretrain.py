@@ -15,17 +15,7 @@ import util.misc as misc
 import torch
 from iopath.common.file_io import g_pathmgr as pathmgr
 
-def train_one_epoch(
-    model: torch.nn.Module,
-    data_loader: Iterable,
-    optimizer: torch.optim.Optimizer,
-    device: torch.device,
-    epoch: int,
-    loss_scaler,
-    log_writer=None,
-    args=None,
-    fp32=False,
-):
+def train_one_epoch(model: torch.nn.Module, data_loader: Iterable, optimizer: torch.optim.Optimizer, device: torch.device, epoch: int, loss_scaler, args=None, fp32=False):
     model.train(True)
     metric_logger = misc.MetricLogger(delimiter="  ")
     metric_logger.add_meter("lr", misc.SmoothedValue(window_size=1, fmt="{value:.6f}"))
@@ -34,16 +24,13 @@ def train_one_epoch(
     metric_logger.add_meter("gpu_mem", misc.SmoothedValue(window_size=1, fmt="{value:.6f}"))
     metric_logger.add_meter("mask_ratio", misc.SmoothedValue(window_size=1, fmt="{value:.6f}"))
     header = "Epoch: [{}]".format(epoch)
-    print_freq = 100
+    num_logs_per_epoch = 1
 
     accum_iter = args.accum_iter
 
     optimizer.zero_grad()
 
-    if log_writer is not None:
-        print("log_dir: {}".format(log_writer.log_dir))
-
-    for data_iter_step, (samples, _) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+    for data_iter_step, (samples, _) in enumerate(metric_logger.log_every(data_loader, len(data_loader) // num_logs_per_epoch, header)):
 
         samples = samples.to(device, non_blocking=True)
         if len(samples.shape) == 6:
@@ -66,13 +53,7 @@ def train_one_epoch(
             raise Exception("Loss is {}, stopping training".format(loss_value))
 
         loss /= accum_iter
-        loss_scaler(
-            loss,
-            optimizer,
-            parameters=model.parameters(),
-            update_grad=(data_iter_step + 1) % accum_iter == 0,
-            clip_grad=args.clip_grad,
-        )
+        loss_scaler(loss, optimizer, parameters=model.parameters(), update_grad=(data_iter_step + 1) % accum_iter == 0, clip_grad=args.clip_grad)
 
         if (data_iter_step + 1) % accum_iter == 0:
             optimizer.zero_grad()
@@ -87,15 +68,6 @@ def train_one_epoch(
 
         lr = optimizer.param_groups[0]["lr"]
         metric_logger.update(lr=lr)
-
-        loss_value_reduce = misc.all_reduce_mean(loss_value)
-        if log_writer is not None and (data_iter_step + 1) % accum_iter == 0:
-            """We use epoch_1000x as the x-axis in tensorboard.
-            This calibrates different curves when batch size changes.
-            """
-            epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000 * args.repeat_aug)
-            log_writer.add_scalar("train_loss", loss_value_reduce, epoch_1000x)
-            log_writer.add_scalar("lr", lr, epoch_1000x)
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()

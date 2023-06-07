@@ -41,9 +41,6 @@ def get_args_parser():
     # Training related parameters
     parser.add_argument("--weight_decay", type=float, default=0.05, help="weight decay (default: 0.05)")
     parser.add_argument("--lr", type=float, default=None, help="learning rate (absolute lr)")
-    parser.add_argument("--blr", type=float, default=1e-3, help="base learning rate: absolute_lr = base_lr * total_batch_size / 256")
-    parser.add_argument("--min_lr", type=float, default=0.0, help="lower lr bound for cyclic schedulers that hit 0")
-    parser.add_argument("--warmup_epochs", type=int, default=40, help="epochs to warmup LR")
     parser.add_argument("--path_to_data_dir", default="", help="data path")
     parser.add_argument("--output_dir", default="./output_dir", help="path where to save, empty for no saving")
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")
@@ -128,13 +125,6 @@ def main(args):
 
     # effective batch size
     eff_batch_size = args.batch_size_per_gpu * args.accum_iter * misc.get_world_size()
-
-    if args.lr is None:  # only base_lr is specified
-        args.lr = args.blr * eff_batch_size / 256
-
-    print("base lr: %.2e" % (args.lr * 256 / eff_batch_size))
-    print("actual lr: %.2e" % args.lr)
-
     print("accumulate grad iterations: %d" % args.accum_iter)
     print("effective batch size: %d" % eff_batch_size)
 
@@ -159,18 +149,7 @@ def main(args):
     for epoch in range(args.start_epoch, args.epochs):
         
         data_loader_train.sampler.set_epoch(epoch)
-
-        train_stats = train_one_epoch(
-            model,
-            data_loader_train,
-            optimizer,
-            device,
-            epoch,
-            loss_scaler,
-            log_writer=None,
-            args=args,
-            fp32=args.fp32,
-        )
+        train_stats = train_one_epoch(model, data_loader_train, optimizer, device, epoch, loss_scaler, args=args, fp32=args.fp32)
 
         if args.output_dir and (epoch % args.checkpoint_period == 0 or epoch + 1 == args.epochs):
             checkpoint_path = misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
