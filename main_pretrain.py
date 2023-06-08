@@ -92,9 +92,9 @@ def find_mp4_files(directory):
                 mp4_files.append((os.path.join(root, file), os.path.basename(root)))
     return mp4_files
 
-def write_csv(video_files, save_name):
+def write_csv(video_files, save_dir, save_name):
     """Write the .csv file with video path and subfolder index"""
-    with open(f'{save_name}.csv', 'w', newline='') as csvfile:
+    with open(os.path.join(save_dir, f'{save_name}.csv'), 'w', newline='') as csvfile:
         for video_file, _ in video_files:
             csvfile.write(f"{video_file} {1}\n")
 
@@ -189,6 +189,6 @@ if __name__ == '__main__':
 
     # prepare data files
     video_files = find_mp4_files(directory=args.path_to_data_dir)
-    write_csv(video_files=video_files, save_name='train')
+    write_csv(video_files=video_files, save_dir=args.path_to_data_dir, save_name='train')
 
     main(args)

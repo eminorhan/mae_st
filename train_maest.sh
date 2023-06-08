@@ -15,9 +15,9 @@ export MASTER_PORT=$(shuf -i 10000-65500 -n 1)
 export WORLD_SIZE=4
 
 # vit-b/16
-srun python -u /scratch/eo41/mae_st/run_pretrain.py \
-    --path_to_data_dir /scratch/eo41/data-video/minute/A \
-    --save_prefix "a_vith14_224_4" \
+srun python -u /scratch/eo41/mae_st/main_pretrain.py \
+    --path_to_data_dir /scratch/eo41/data-video/minute/Y \
+    --save_prefix "y_vith14_224_4" \
     --output_dir /scratch/eo41/mae_st/say_vith14 \
     --model mae_vit_huge_patch14 \
     --resume "" \
