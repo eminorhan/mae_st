@@ -226,18 +226,10 @@ class Kinetics(torch.utils.data.Dataset):
             try:
                 video_container = container.get_video_container(self._path_to_videos[index])
             except Exception as e:
-                print(
-                    "Failed to load video from {} with error {}".format(
-                        self._path_to_videos[index], e
-                    )
-                )
+                print("Failed to load video from {} with error {}".format(self._path_to_videos[index], e))
             # Select a random video if the current video was not able to access.
             if video_container is None:
-                print(
-                    "Failed to meta load video idx {} from {}; trial {}".format(
-                        index, self._path_to_videos[index], i_try
-                    )
-                )
+                print("Failed to meta load video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try))
                 if self.mode not in ["test"] and i_try > self._num_retries // 2:
                     # let's try another one
                     index = random.randint(0, len(self._path_to_videos) - 1)
@@ -260,11 +252,7 @@ class Kinetics(torch.utils.data.Dataset):
             # If decoding failed (wrong format, video is too short, and etc),
             # select another video.
             if frames is None:
-                print(
-                    "Failed to decode video idx {} from {}; trial {}".format(
-                        index, self._path_to_videos[index], i_try
-                    )
-                )
+                print("Failed to decode video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try))
                 if self.mode not in ["test"] and i_try > self._num_retries // 2:
                     # let's try another one
                     index = random.randint(0, len(self._path_to_videos) - 1)
@@ -284,9 +272,7 @@ class Kinetics(torch.utils.data.Dataset):
                         use_offset=self._use_offset_sampling,
                     )
                     # Perform temporal sampling from the decoded video.
-                    new_frames = temporal_sampling(
-                        frames, start_idx, end_idx, self._num_frames
-                    )
+                    new_frames = temporal_sampling(frames, start_idx, end_idx, self._num_frames)
                     new_frames = self._aug_frame(
                         new_frames,
                         spatial_sample_index,
@@ -308,29 +294,14 @@ class Kinetics(torch.utils.data.Dataset):
                         use_offset=self._use_offset_sampling,
                     )
                     # Perform temporal sampling from the decoded video.
-                    new_frames = temporal_sampling(
-                        frames, start_idx, end_idx, self._num_frames
-                    )
+                    new_frames = temporal_sampling(frames, start_idx, end_idx, self._num_frames)
 
-                    new_frames = utils.tensor_normalize(
-                        new_frames, self._mean, self._std
-                    )
+                    new_frames = utils.tensor_normalize(new_frames, self._mean, self._std)
                     new_frames = new_frames.permute(3, 0, 1, 2)
 
-                    scl, asp = (
-                        self.jitter_scales_relative,
-                        self.jitter_aspect_relative,
-                    )
-                    relative_scales = (
-                        None
-                        if (self.mode not in ["pretrain", "finetune"] or len(scl) == 0)
-                        else scl
-                    )
-                    relative_aspect = (
-                        None
-                        if (self.mode not in ["pretrain", "finetune"] or len(asp) == 0)
-                        else asp
-                    )
+                    scl, asp = (self.jitter_scales_relative, self.jitter_aspect_relative)
+                    relative_scales = (None if (self.mode not in ["pretrain", "finetune"] or len(scl) == 0) else scl)
+                    relative_aspect = (None if (self.mode not in ["pretrain", "finetune"] or len(asp) == 0) else asp)
 
                     # Perform data augmentation.
                     new_frames = utils.spatial_sampling(
@@ -353,9 +324,7 @@ class Kinetics(torch.utils.data.Dataset):
             else:
                 return frames, torch.tensor(label_list)
         else:
-            raise RuntimeError(
-                "Failed to fetch video after {} retries.".format(self._num_retries)
-            )
+            raise RuntimeError("Failed to fetch video after {} retries.".format(self._num_retries))
 
     def _aug_frame(
         self,
@@ -377,28 +346,13 @@ class Kinetics(torch.utils.data.Dataset):
         frames = self._list_img_to_frames(list_img)
         frames = frames.permute(0, 2, 3, 1)
 
-        frames = utils.tensor_normalize(
-            frames,
-            (0.45, 0.45, 0.45),
-            (0.225, 0.225, 0.225),
-        )
+        frames = utils.tensor_normalize(frames, (0.45, 0.45, 0.45), (0.225, 0.225, 0.225))
         # T H W C -> C T H W.
         frames = frames.permute(3, 0, 1, 2)
         # Perform data augmentation.
-        scl, asp = (
-            self.jitter_scales_relative,
-            self.jitter_aspect_relative,
-        )
-        relative_scales = (
-            None
-            if (self.mode not in ["pretrain", "finetune"] or len(scl) == 0)
-            else scl
-        )
-        relative_aspect = (
-            None
-            if (self.mode not in ["pretrain", "finetune"] or len(asp) == 0)
-            else asp
-        )
+        scl, asp = (self.jitter_scales_relative, self.jitter_aspect_relative)
+        relative_scales = (None if (self.mode not in ["pretrain", "finetune"] or len(scl) == 0) else scl)
+        relative_aspect = (None if (self.mode not in ["pretrain", "finetune"] or len(asp) == 0) else asp)
         frames = utils.spatial_sampling(
             frames,
             spatial_idx=spatial_sample_index,

@@ -14,7 +14,7 @@ export MASTER_ADDR=$(hostname -s)
 export MASTER_PORT=$(shuf -i 10000-65500 -n 1)
 export WORLD_SIZE=4
 
-# vit-b/16
+# vit-h/14
 srun python -u /scratch/eo41/mae_st/main_pretrain.py \
     --path_to_data_dir /scratch/eo41/data-video/minute/Y \
     --save_prefix "y_vith14_224_4" \
@@ -22,7 +22,7 @@ srun python -u /scratch/eo41/mae_st/main_pretrain.py \
     --model mae_vit_huge_patch14 \
     --resume "" \
     --batch_size_per_gpu 1 \
-    --epochs 100 \
+    --epochs 1000 \
     --num_frames 16 \
     --input_size 224 \
     --decoder_embed_dim 512 \
@@ -30,7 +30,7 @@ srun python -u /scratch/eo41/mae_st/main_pretrain.py \
     --pin_mem \
     --num_workers 4 \
     --t_patch_size 2 \
-    --repeat_aug 16 \
+    --repeat_aug 23 \
     --sampling_rate 4 \
     --norm_pix_loss \
     --lr 0.0001 \

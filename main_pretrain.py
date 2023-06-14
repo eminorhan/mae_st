@@ -100,7 +100,6 @@ def write_csv(video_files, save_dir, save_name):
 
 def main(args):
     misc.init_distributed_mode(args)
-
     print("job dir: {}".format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(", ", ",\n"))
     device = torch.device(args.device)
@@ -191,4 +190,5 @@ if __name__ == '__main__':
     video_files = find_mp4_files(directory=args.path_to_data_dir)
     write_csv(video_files=video_files, save_dir=args.path_to_data_dir, save_name='train')
 
+    # train
     main(args)

@@ -186,7 +186,8 @@ def prepare_video(path):
     )
     return frames
 
-VID_PATH = "demo/Y_20200201_2318_02_segment2.mp4"
+fname = "demo4"
+VID_PATH = f"demo/{fname}.mp4"
 model = mae_vit_huge_patch14(t_patch_size=2, cls_embed=True, norm_pix_loss=True, sep_pos_embed=True, decoder_depth=4)
 model.eval()
 
@@ -208,4 +209,4 @@ with torch.no_grad():
 
     vis = torch.cat((a, b, c), 0)
 
-    save_image(vis, 'vis.jpg', nrow=8, padding=1, normalize=True, scale_each=True)
+    save_image(vis, f'{fname}.jpg', nrow=8, padding=1, normalize=True, scale_each=True)
