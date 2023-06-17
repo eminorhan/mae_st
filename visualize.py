@@ -1,14 +1,23 @@
 import math
 import random
+import argparse
 import torch
 import numpy as np
 from torchvision.utils import save_image
-from models_mae import mae_vit_huge_patch14
+import models_mae
 from util.decoder.utils import tensor_normalize, spatial_sampling
 import av
 
 MEAN = (0.45, 0.45, 0.45)
 STD = (0.225, 0.225, 0.225)
+
+def get_args_parser():
+    parser = argparse.ArgumentParser("Visualize MAEs", add_help=False)
+    parser.add_argument("--mask_ratio", default=0.9, type=float, help="Masking ratio (percentage of removed patches)")
+    parser.add_argument("--eval_clip_name", default="demo1", type=str, help="name of eval video clip file")
+    parser.add_argument("--model_path", default="", type=str, help="path to pretrained model")
+    parser.add_argument("--model_arch", default="mae_vit_huge_patch14", type=str, help="Model architecture")
+    return parser
 
 def get_start_end_idx(video_size, clip_size, clip_idx, num_clips_uniform, use_offset=False):
     """
@@ -186,27 +195,33 @@ def prepare_video(path):
     )
     return frames
 
-fname = "demo4"
-VID_PATH = f"demo/{fname}.mp4"
-model = mae_vit_huge_patch14(t_patch_size=2, cls_embed=True, norm_pix_loss=True, sep_pos_embed=True, decoder_depth=4)
-model.eval()
+if __name__ == '__main__':
 
-checkpoint = torch.load("say_vith14/y_vith14_224_4.pth", map_location='cpu')
-msg = model.load_state_dict(checkpoint['model'], strict=False)
-print(msg)
+    args = get_args_parser()
+    args = args.parse_args()
+    print(args)
+    
+    # set up and load model
+    model = models_mae.__dict__[args.model_arch](t_patch_size=2, cls_embed=True, norm_pix_loss=True, sep_pos_embed=True, decoder_depth=4)
+    model.eval()
 
-vid = prepare_video(VID_PATH)
+    checkpoint = torch.load(args.model_path, map_location='cpu')
+    msg = model.load_state_dict(checkpoint['model'], strict=False)
+    print(msg)
 
-with torch.no_grad():
-    _, _, _, vis = model(vid.unsqueeze(0), mask_ratio=0.9, visualize=True)
+    # load and prepate eval video
+    vid = prepare_video(f"demo/{args.eval_clip_name}.mp4")
 
-    vis = vis[0].permute(0, 2, 1, 3, 4)
-    print(vis.shape)
+    with torch.no_grad():
+        _, _, _, vis = model(vid.unsqueeze(0), mask_ratio=args.mask_ratio, visualize=True)
 
-    a = vis[0, :, :, :, :]
-    b = vis[1, :, :, :, :]
-    c = vis[2, :, :, :, :]
+        vis = vis[0].permute(0, 2, 1, 3, 4)
+        print(vis.shape)
 
-    vis = torch.cat((a, b, c), 0)
+        a = vis[0, :, :, :, :]
+        b = vis[1, :, :, :, :]
+        c = vis[2, :, :, :, :]
 
-    save_image(vis, f'{fname}.jpg', nrow=8, padding=1, normalize=True, scale_each=True)
+        vis = torch.cat((a, b, c), 0)
+
+        save_image(vis, f'{args.eval_clip_name}.jpg', nrow=8, padding=1, normalize=True, scale_each=True)

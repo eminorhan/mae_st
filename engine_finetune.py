@@ -37,31 +37,21 @@ def train_one_epoch(
     model.train(True)
     metric_logger = misc.MetricLogger(delimiter="  ")
     metric_logger.add_meter("lr", misc.SmoothedValue(window_size=1, fmt="{value:.6f}"))
-    metric_logger.add_meter(
-        "cpu_mem", misc.SmoothedValue(window_size=1, fmt="{value:.6f}")
-    )
-    metric_logger.add_meter(
-        "cpu_mem_all", misc.SmoothedValue(window_size=1, fmt="{value:.6f}")
-    )
-    metric_logger.add_meter(
-        "gpu_mem", misc.SmoothedValue(window_size=1, fmt="{value:.6f}")
-    )
+    metric_logger.add_meter("cpu_mem", misc.SmoothedValue(window_size=1, fmt="{value:.6f}"))
+    metric_logger.add_meter("cpu_mem_all", misc.SmoothedValue(window_size=1, fmt="{value:.6f}"))
+    metric_logger.add_meter("gpu_mem", misc.SmoothedValue(window_size=1, fmt="{value:.6f}"))
     header = "Epoch: [{}]".format(epoch)
-    print_freq = 20
+    num_logs_per_epoch = 1
 
     accum_iter = args.accum_iter
 
     optimizer.zero_grad()
 
-    for data_iter_step, (samples, targets) in enumerate(
-        metric_logger.log_every(data_loader, print_freq, header)
-    ):
+    for data_iter_step, (samples, targets) in enumerate(metric_logger.log_every(data_loader, len(data_loader) // num_logs_per_epoch, header)):
 
         # we use a per iteration (instead of per epoch) lr scheduler
         if data_iter_step % accum_iter == 0:
-            lr_sched.adjust_learning_rate(
-                optimizer, data_iter_step / len(data_loader) + epoch, args
-            )
+            lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
 
         if len(samples.shape) == 6:
             b, r, c, t, h, w = samples.shape
@@ -90,14 +80,8 @@ def train_one_epoch(
             sys.exit(1)
 
         loss /= accum_iter
-        loss_scaler(
-            loss,
-            optimizer,
-            clip_grad=max_norm,
-            parameters=model.parameters(),
-            create_graph=False,
-            update_grad=(data_iter_step + 1) % accum_iter == 0,
-        )
+        loss_scaler(loss, optimizer, clip_grad=max_norm, parameters=model.parameters(), create_graph=False, update_grad=(data_iter_step + 1) % accum_iter == 0)
+        
         if (data_iter_step + 1) % accum_iter == 0:
             optimizer.zero_grad()
 
@@ -153,11 +137,9 @@ def evaluate(data_loader, model, device):
         metric_logger.update(loss=loss.item())
         metric_logger.meters["acc1"].update(acc1.item(), n=batch_size)
         metric_logger.meters["acc5"].update(acc5.item(), n=batch_size)
+
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
-    print("* Acc@1 {top1.global_avg:.3f} Acc@5 {top5.global_avg:.3f} loss {losses.global_avg:.3f}".format(
-            top1=metric_logger.acc1, top5=metric_logger.acc5, losses=metric_logger.loss
-        )
-    )
+    print("* Acc@1 {top1.global_avg:.3f} Acc@5 {top5.global_avg:.3f} loss {losses.global_avg:.3f}".format(top1=metric_logger.acc1, top5=metric_logger.acc5, losses=metric_logger.loss))
 
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
