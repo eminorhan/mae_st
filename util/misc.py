@@ -12,6 +12,7 @@
 import builtins
 import datetime
 import os
+import sys
 import time
 from collections import defaultdict, deque, OrderedDict
 
@@ -216,7 +217,6 @@ def init_distributed_mode(args):
         os.environ['MASTER_ADDR'] = '127.0.0.1'
         os.environ['MASTER_PORT'] = '29500'
     else:
-        import sys
         print('Does not support training without GPU.')
         sys.exit(1)
 
@@ -311,7 +311,7 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler):
         else:
             with pathmgr.open(args.resume, "rb") as f:
                 checkpoint = torch.load(f, map_location="cpu")
-        model_without_ddp.load_state_dict(checkpoint["model"])
+        model_without_ddp.load_state_dict(checkpoint["model"], strict=False)
         print("Resume checkpoint %s" % args.resume)
         if (
             "optimizer" in checkpoint

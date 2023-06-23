@@ -197,11 +197,10 @@ class MaskedAutoencoderViT(nn.Module):
         imgs: (N, 3, H, W)
         """
         N, T, H, W, p, u, t, h, w = self.patch_info
-
         x = x.reshape(shape=(N, t, h, w, u, p, p, 3))
-
         x = torch.einsum("nthwupqc->nctuhpwq", x)
         imgs = x.reshape(shape=(N, 3, T, H, W))
+        
         return imgs
 
     def random_masking(self, x, mask_ratio):
@@ -398,6 +397,11 @@ def mae_vit_large_patch16(**kwargs):
 
 def mae_vit_large_patch14(**kwargs):
     model = MaskedAutoencoderViT(patch_size=14, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
+
+
+def mae_vit_huge_patch16(**kwargs):
+    model = MaskedAutoencoderViT(patch_size=16, embed_dim=1280, depth=32, num_heads=16, mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 

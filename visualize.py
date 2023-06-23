@@ -24,8 +24,7 @@ def get_start_end_idx(video_size, clip_size, clip_idx, num_clips_uniform, use_of
     Sample a clip of size clip_size from a video of size video_size and
     return the indices of the first and last frame of the clip. If clip_idx is
     -1, the clip is randomly sampled, otherwise uniformly split the video to
-    num_clips_uniform clips, and select the start and end index of clip_idx-th video
-    clip.
+    num_clips_uniform clips, and select the start and end index of clip_idx-th video clip.
     Args:
         video_size (int): number of overall frames.
         clip_size (int): size of the clip to sample from the frames.

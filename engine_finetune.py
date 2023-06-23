@@ -10,13 +10,14 @@
 # --------------------------------------------------------
 
 import math
+from random import sample
 import sys
 from typing import Iterable, Optional
 
-import mae_st.util.lr_sched as lr_sched
-import mae_st.util.misc as misc
+import util.lr_sched as lr_sched
+import util.misc as misc
 import torch
-from mae_st.util.logging import master_print as print
+from util.logging import master_print as print
 from timm.data import Mixup
 from timm.utils import accuracy
 
@@ -48,6 +49,8 @@ def train_one_epoch(
     optimizer.zero_grad()
 
     for data_iter_step, (samples, targets) in enumerate(metric_logger.log_every(data_loader, len(data_loader) // num_logs_per_epoch, header)):
+
+        # print('Iter:', data_iter_step, samples.max(), samples.min(), targets)
 
         # we use a per iteration (instead of per epoch) lr scheduler
         if data_iter_step % accum_iter == 0:

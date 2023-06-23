@@ -96,7 +96,7 @@ def write_csv(video_files, save_dir, save_name):
     """Write the .csv file with video path and subfolder index"""
     with open(os.path.join(save_dir, f'{save_name}.csv'), 'w', newline='') as csvfile:
         for video_file, _ in video_files:
-            csvfile.write(f"{video_file} {1}\n")
+            csvfile.write(f"{video_file}, {1}\n")
 
 def main(args):
     misc.init_distributed_mode(args)

@@ -14,9 +14,9 @@ from functools import partial
 
 import torch
 import torch.nn as nn
-from mae_st.util.logging import master_print as print
+from util.logging import master_print as print
 
-from mae_st.util.video_vit import Attention, Block, PatchEmbed
+from util.video_vit import Attention, Block, PatchEmbed
 
 
 class VisionTransformer(nn.Module):
@@ -51,9 +51,7 @@ class VisionTransformer(nn.Module):
         self.sep_pos_embed = sep_pos_embed
         # --------------------------------------------------------------------------
         # MAE encoder specifics
-        self.patch_embed = PatchEmbed(
-            img_size, patch_size, in_chans, embed_dim, num_frames, t_patch_size
-        )
+        self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim, num_frames, t_patch_size)
         num_patches = self.patch_embed.num_patches
         input_size = self.patch_embed.input_size
         self.input_size = input_size
@@ -63,12 +61,8 @@ class VisionTransformer(nn.Module):
             self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
 
         if sep_pos_embed:
-            self.pos_embed_spatial = nn.Parameter(
-                torch.zeros(1, input_size[1] * input_size[2], embed_dim)
-            )
-            self.pos_embed_temporal = nn.Parameter(
-                torch.zeros(1, input_size[0], embed_dim)
-            )
+            self.pos_embed_spatial = nn.Parameter(torch.zeros(1, input_size[1] * input_size[2], embed_dim))
+            self.pos_embed_temporal = nn.Parameter(torch.zeros(1, input_size[0], embed_dim))
             if self.cls_embed:
                 self.pos_embed_class = nn.Parameter(torch.zeros(1, 1, embed_dim))
         else:
@@ -77,13 +71,9 @@ class VisionTransformer(nn.Module):
             else:
                 _num_patches = num_patches
 
-            self.pos_embed = nn.Parameter(
-                torch.zeros(1, _num_patches, embed_dim), requires_grad=True
-            )  # fixed or not?
+            self.pos_embed = nn.Parameter(torch.zeros(1, _num_patches, embed_dim), requires_grad=True)  # fixed or not?
 
-        dpr = [
-            x.item() for x in torch.linspace(0, drop_path_rate, depth)
-        ]  # stochastic depth decay rule
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
 
         self.blocks = nn.ModuleList(
             [
@@ -95,10 +85,7 @@ class VisionTransformer(nn.Module):
                     qk_scale=None,
                     norm_layer=norm_layer,
                     drop_path=dpr[i],
-                    attn_func=partial(
-                        Attention,
-                        input_size=self.patch_embed.input_size,
-                    ),
+                    attn_func=partial(Attention, input_size=self.patch_embed.input_size),
                 )
                 for i in range(depth)
             ]
@@ -143,13 +130,7 @@ class VisionTransformer(nn.Module):
                 dim=1,
             )
             if self.cls_embed:
-                pos_embed = torch.cat(
-                    [
-                        self.pos_embed_class.expand(pos_embed.shape[0], -1, -1),
-                        pos_embed,
-                    ],
-                    1,
-                )
+                pos_embed = torch.cat([self.pos_embed_class.expand(pos_embed.shape[0], -1, -1), pos_embed], 1)
         else:
             pos_embed = self.pos_embed[:, :, :]
         x = x + pos_embed
@@ -181,52 +162,25 @@ class VisionTransformer(nn.Module):
 
 
 def vit_base_patch16(**kwargs):
-    model = VisionTransformer(
-        patch_size=16,
-        embed_dim=768,
-        depth=12,
-        num_heads=12,
-        mlp_ratio=4,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        **kwargs,
-    )
+    model = VisionTransformer(patch_size=16, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
+
+
+def vit_base_patch14(**kwargs):
+    model = VisionTransformer(patch_size=14, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 
 def vit_large_patch16(**kwargs):
-    model = VisionTransformer(
-        patch_size=16,
-        embed_dim=1024,
-        depth=24,
-        num_heads=16,
-        mlp_ratio=4,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        **kwargs,
-    )
+    model = VisionTransformer(patch_size=16, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 
 def vit_large_patch14(**kwargs):
-    model = VisionTransformer(
-        patch_size=14,
-        embed_dim=1024,
-        depth=24,
-        num_heads=16,
-        mlp_ratio=4,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        **kwargs,
-    )
+    model = VisionTransformer(patch_size=14, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 
 def vit_huge_patch14(**kwargs):
-    model = VisionTransformer(
-        patch_size=14,
-        embed_dim=1280,
-        depth=32,
-        num_heads=16,
-        mlp_ratio=4,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        **kwargs,
-    )
+    model = VisionTransformer(patch_size=14, embed_dim=1280, depth=32, num_heads=16, mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model

@@ -17,11 +17,11 @@ export WORLD_SIZE=4
 # vit-h/14
 srun python -u /scratch/eo41/mae_st/main_pretrain.py \
     --path_to_data_dir /scratch/eo41/data-video/minute/Y \
-    --save_prefix "y_vith14_224_4" \
+    --save_prefix "y_vith14_224_4_b23x4" \
     --output_dir /scratch/eo41/mae_st/say_vith14 \
     --model mae_vit_huge_patch14 \
     --resume "" \
-    --batch_size_per_gpu 1 \
+    --batch_size_per_gpu 23 \
     --accum_iter 1 \
     --epochs 1000 \
     --num_frames 16 \
@@ -31,12 +31,12 @@ srun python -u /scratch/eo41/mae_st/main_pretrain.py \
     --pin_mem \
     --num_workers 16 \
     --t_patch_size 2 \
-    --repeat_aug 16 \
+    --repeat_aug 1 \
     --sampling_rate 4 \
     --norm_pix_loss \
     --lr 0.0001 \
     --mask_ratio 0.9 \
     --pred_t_dim 8 \
-    --clip_grad 0.02
+    --clip_grad 0.1
 
 echo "Done"

@@ -164,8 +164,8 @@ class Kinetics(torch.utils.data.Dataset):
         with pathmgr.open(path_to_file, "r") as f:
             for clip_idx, path_label in enumerate(f.read().splitlines()):
                 print(path_label)
-                assert len(path_label.split()) == 2
-                path, label = path_label.split()
+                assert len(path_label.split(', ')) == 2
+                path, label = path_label.split(', ')
                 for idx in range(self._num_clips):
                     self._path_to_videos.append(os.path.join(path))
                     self._labels.append(int(label))

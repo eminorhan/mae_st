@@ -16,33 +16,33 @@ import os
 import time
 from pathlib import Path
 
-import mae_st.models_vit as models_vit
+import models_vit
 
-import mae_st.util.lr_decay as lrd
-import mae_st.util.misc as misc
+import util.lr_decay as lrd
+import util.misc as misc
 
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 from iopath.common.file_io import g_pathmgr as pathmgr
-from mae_st.engine_finetune import evaluate, train_one_epoch
+from engine_finetune import evaluate, train_one_epoch
 
-from mae_st.util.decoder.mixup import MixUp as MixVideo
-from mae_st.util.kinetics import Kinetics
-from mae_st.util.logging import master_print as print
-from mae_st.util.misc import NativeScalerWithGradNormCount as NativeScaler
-from mae_st.util.pos_embed import interpolate_pos_embed
+from util.decoder.mixup import MixUp as MixVideo
+from util.kinetics import Kinetics
+from util.logging import master_print as print
+from util.misc import NativeScalerWithGradNormCount as NativeScaler
+from util.pos_embed import interpolate_pos_embed
 
-# from pytorchvideo.transforms.mix import MixVideo
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 from timm.models.layers import trunc_normal_
 
 
 def get_args_parser():
     parser = argparse.ArgumentParser("MAE fine-tuning for image classification", add_help=False)
-    parser.add_argument("--batch_size", default=64, type=int, help="Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus")
+    parser.add_argument("--batch_size_per_gpu", default=64, type=int, help="Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus")
     parser.add_argument("--epochs", default=50, type=int)
     parser.add_argument("--accum_iter", default=1, type=int, help="Accumulate gradient iterations (for increasing the effective batch size under memory constraints)")
+    parser.add_argument("--save_prefix", default="", type=str, help="prefix for saving checkpoint and log files")
 
     # Model parameters
     parser.add_argument("--model", default="vit_large_patch16", type=str, metavar="MODEL", help="Name of model to train")
@@ -84,8 +84,9 @@ def get_args_parser():
     parser.add_argument("--global_pool", action="store_true")
     parser.set_defaults(global_pool=True)
     parser.add_argument("--cls_token", action="store_false", dest="global_pool", help="Use class token instead of global pool for classification")
-    parser.add_argument("--num_classes", default=400, type=int, help="number of the classification types")
-    parser.add_argument("--path_to_data_dir", default="", help="path where to save, empty for no saving")
+    parser.add_argument("--num_classes", default=700, type=int, help="number of the classes")
+    parser.add_argument("--train_dir", default="", help="path to train data")
+    parser.add_argument("--val_dir", default="", help="path to val data")
     parser.add_argument("--output_dir", default="./output_dir", help="path where to save, empty for no saving")
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")
     parser.add_argument("--seed", default=0, type=int)
@@ -93,7 +94,6 @@ def get_args_parser():
 
     parser.add_argument("--start_epoch", default=0, type=int, metavar="N", help="start epoch")
     parser.add_argument("--eval", action="store_true", help="Perform evaluation only")
-    parser.add_argument("--dist_eval", action="store_true", default=False, help="Enabling distributed evaluation (recommended during training for faster monitor")
     parser.add_argument("--num_workers", default=10, type=int)
     parser.add_argument("--pin_mem", action="store_true", help="Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.")
     parser.add_argument("--no_pin_mem", action="store_false", dest="pin_mem")
@@ -112,7 +112,6 @@ def get_args_parser():
     parser.add_argument("--num_frames", default=32, type=int)
     parser.add_argument("--checkpoint_period", default=1, type=int)
     parser.add_argument("--sampling_rate", default=2, type=int)
-    parser.add_argument("--distributed", action="store_true")
     parser.add_argument("--repeat_aug", default=1, type=int)
     parser.add_argument("--cpu_mix", action="store_true")
     parser.add_argument("--no_qkv_bias", action="store_true")
@@ -126,6 +125,34 @@ def get_args_parser():
     parser.set_defaults(cls_embed=True)
 
     return parser
+
+def list_subdirectories(directory):
+    subdirectories = []
+    for entry in os.scandir(directory):
+        if entry.is_dir():
+            subdirectories.append(entry.path)
+    subdirectories.sort()  # Sort the list of subdirectories alphabetically
+    return subdirectories
+
+def find_mp4_files(directory):
+    """Recursively search for .mp4 files in a directory"""
+    mp4_files = []
+    subdir_idx = 0
+    subdirectories = list_subdirectories(directory)
+    for subdir in subdirectories:
+        files = os.listdir(subdir)
+        files.sort()
+        for file in files:
+            if file.endswith(".mp4"):
+                mp4_files.append((os.path.join(subdir, file), subdir_idx))
+        subdir_idx += 1
+    return mp4_files
+
+def write_csv(video_files, save_dir, save_name):
+    """Write the .csv file with video path and subfolder index"""
+    with open(os.path.join(save_dir, f'{save_name}.csv'), 'w', newline='') as csvfile:
+        for video_file, subdir_idx in video_files:
+            csvfile.write(f"{video_file}, {subdir_idx}\n")
 
 def main(args):
     misc.init_distributed_mode(args)
@@ -143,7 +170,7 @@ def main(args):
 
     dataset_train = Kinetics(
         mode="finetune",
-        path_to_data_dir=args.path_to_data_dir,
+        path_to_data_dir=args.train_dir,
         sampling_rate=args.sampling_rate,
         num_frames=args.num_frames,
         train_jitter_scales=(256, 320),
@@ -159,7 +186,7 @@ def main(args):
     )
     dataset_val = Kinetics(
         mode="val",
-        path_to_data_dir=args.path_to_data_dir,
+        path_to_data_dir=args.val_dir,
         sampling_rate=args.sampling_rate,
         num_frames=args.num_frames,
         train_jitter_scales=(256, 320),
@@ -167,27 +194,17 @@ def main(args):
         jitter_scales_relative=args.jitter_scales_relative,
     )
 
-    if args.distributed:
-        num_tasks = misc.get_world_size()
-        global_rank = misc.get_rank()
-        sampler_train = torch.utils.data.DistributedSampler(dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True)
-        print("Sampler_train = %s" % str(sampler_train))
+    num_tasks = misc.get_world_size()
+    global_rank = misc.get_rank()
+    sampler_train = torch.utils.data.DistributedSampler(dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True)
+    print("Sampler_train = %s" % str(sampler_train))
 
-        if args.dist_eval:
-            if len(dataset_val) % num_tasks != 0:
-                print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. "
-                      "This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
-            sampler_val = torch.utils.data.DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=True)  # shuffle=True to reduce monitor bias
-        else:
-            sampler_val = torch.utils.data.SequentialSampler(dataset_val)
-    else:
-        num_tasks = 1
-        global_rank = 0
-        sampler_train = torch.utils.data.RandomSampler(dataset_train)
-        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+    if len(dataset_val) % num_tasks != 0:
+        print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
+    sampler_val = torch.utils.data.DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=True)  # shuffle=True to reduce monitor bias
 
-    data_loader_train = torch.utils.data.DataLoader(dataset_train, sampler=sampler_train, batch_size=args.batch_size, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=True)
-    data_loader_val = torch.utils.data.DataLoader(dataset_val, sampler=sampler_val, batch_size=args.batch_size, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
+    data_loader_train = torch.utils.data.DataLoader(dataset_train, sampler=sampler_train, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=True)
+    data_loader_val = torch.utils.data.DataLoader(dataset_val, sampler=sampler_val, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
 
     mixup_fn = None
     mixup_active = args.mixup > 0 or args.cutmix > 0.0 or args.cutmix_minmax is not None
@@ -230,7 +247,7 @@ def main(args):
     print("Model = %s" % str(model_without_ddp))
     print("number of params (M): %.2f" % (n_parameters / 1.0e6))
 
-    eff_batch_size = (args.batch_size * args.accum_iter * misc.get_world_size() * args.repeat_aug)
+    eff_batch_size = (args.batch_size_per_gpu * args.accum_iter * misc.get_world_size() * args.repeat_aug)
 
     if args.lr is None:  # only base_lr is specified
         args.lr = args.blr * eff_batch_size / 256
@@ -241,9 +258,8 @@ def main(args):
     print("accumulate grad iterations: %d" % args.accum_iter)
     print("effective batch size: %d" % eff_batch_size)
 
-    if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[torch.cuda.current_device()])
-        model_without_ddp = model.module
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[torch.cuda.current_device()])
+    model_without_ddp = model.module
 
     # build optimizer with layer-wise lr decay (lrd)
     param_groups = lrd.param_groups_lrd(model_without_ddp, args.weight_decay, no_weight_decay_list=model_without_ddp.no_weight_decay(), layer_decay=args.layer_decay)
@@ -273,13 +289,12 @@ def main(args):
     max_accuracy = 0.0
 
     for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
-            data_loader_train.sampler.set_epoch(epoch)
-    
+
+        data_loader_train.sampler.set_epoch(epoch)
         train_stats = train_one_epoch(model, criterion, data_loader_train, optimizer, device, epoch, loss_scaler, args.clip_grad, mixup_fn, args=args, fp32=args.fp32)
     
         if args.output_dir:
-            checkpoint_path = misc.save_model(args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
+            checkpoint_path = misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
 
         test_stats = evaluate(data_loader_val, model, device)
         print(f"Accuracy of the model on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
@@ -290,7 +305,7 @@ def main(args):
         log_stats = {**{f"train_{k}": v for k, v in train_stats.items()}, **{f"test_{k}": v for k, v in test_stats.items()}, "epoch": epoch, "n_parameters": n_parameters}
 
         if args.output_dir and misc.is_main_process():
-            with pathmgr.open(f"{args.output_dir}/log.txt", "a") as f:
+            with pathmgr.open(f"{args.output_dir}/{args.save_prefix}_log.txt", "a") as f:
                 f.write(json.dumps(log_stats) + "\n")
 
     total_time = time.time() - start_time
@@ -303,6 +318,12 @@ if __name__ == '__main__':
     args = get_args_parser()
     args = args.parse_args()
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+
+    # prepare data files
+    train_files = find_mp4_files(directory=args.train_dir)
+    write_csv(video_files=train_files, save_dir=args.train_dir, save_name='train')
+    val_files = find_mp4_files(directory=args.val_dir)
+    write_csv(video_files=val_files, save_dir=args.val_dir, save_name='val')
 
     # finetune
     main(args)
