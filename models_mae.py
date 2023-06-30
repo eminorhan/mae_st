@@ -203,12 +203,41 @@ class MaskedAutoencoderViT(nn.Module):
         
         return imgs
 
+    def temporal_masking(self, x, mask_ratio):
+        """
+        Perform per-sample temporal masking 
+        x: [N, L, D], sequence
+        """
+        print(x.shape)
+        N, L, D = x.shape  # batch, length, dim
+        len_keep = int(L * (1 - mask_ratio))
+
+        noise = torch.arange(N*L, device=x.device).reshape(N, L)
+
+        # sort noise for each sample
+        ids_shuffle = torch.argsort(noise, dim=1)  # ascend: small is keep, large is remove
+        ids_restore = torch.argsort(ids_shuffle, dim=1)
+
+        # keep the first subset
+        ids_keep = ids_shuffle[:, :len_keep]
+        x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
+
+        # generate the binary mask: 0 is keep, 1 is remove
+        mask = torch.ones([N, L], device=x.device)
+        mask[:, :len_keep] = 0
+
+        # unshuffle to get the binary mask
+        mask = torch.gather(mask, dim=1, index=ids_restore)
+
+        return x_masked, mask, ids_restore, ids_keep
+
     def random_masking(self, x, mask_ratio):
         """
         Perform per-sample random masking by per-sample shuffling.
         Per-sample shuffling is done by argsort random noise.
         x: [N, L, D], sequence
         """
+        print(x.shape)
         N, L, D = x.shape  # batch, length, dim
         len_keep = int(L * (1 - mask_ratio))
 
@@ -231,7 +260,7 @@ class MaskedAutoencoderViT(nn.Module):
 
         return x_masked, mask, ids_restore, ids_keep
 
-    def forward_encoder(self, x, mask_ratio):
+    def forward_encoder(self, x, mask_ratio, mask_type='random'):
         # embed patches
         x = self.patch_embed(x)
         N, T, L, C = x.shape
@@ -239,7 +268,12 @@ class MaskedAutoencoderViT(nn.Module):
         x = x.reshape(N, T * L, C)
 
         # masking: length -> length * mask_ratio
-        x, mask, ids_restore, ids_keep = self.random_masking(x, mask_ratio)
+        if mask_type == 'random':
+            x, mask, ids_restore, ids_keep = self.random_masking(x, mask_ratio)
+        elif mask_type == 'temporal':
+            x, mask, ids_restore, ids_keep = self.temporal_masking(x, mask_ratio)
+        else:
+            raise NotImplementedError("Does not support {} masking".format(mask_type))
         x = x.view(N, -1, C)
 
         # append cls token
@@ -363,8 +397,8 @@ class MaskedAutoencoderViT(nn.Module):
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
         return loss
 
-    def forward(self, imgs, mask_ratio=0.9, visualize=False):
-        latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
+    def forward(self, imgs, mask_ratio=0.9, visualize=False, mask_type='random'):
+        latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio, mask_type)
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
         loss = self.forward_loss(imgs, pred, mask, visualize)
         

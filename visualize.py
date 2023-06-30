@@ -212,7 +212,7 @@ if __name__ == '__main__':
     vid = prepare_video(f"demo/{args.eval_clip_name}.mp4")
 
     with torch.no_grad():
-        _, _, _, vis = model(vid.unsqueeze(0), mask_ratio=args.mask_ratio, visualize=True)
+        _, _, _, vis = model(vid.unsqueeze(0), mask_ratio=args.mask_ratio, visualize=True, mask_type='temporal')
 
         vis = vis[0].permute(0, 2, 1, 3, 4)
         print(vis.shape)
