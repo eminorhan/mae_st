@@ -114,11 +114,12 @@ def evaluate(data_loader, model, device):
 
     metric_logger = misc.MetricLogger(delimiter="  ")
     header = "Test:"
+    num_logs_per_epoch = 1
 
     # switch to evaluation mode
     model.eval()
 
-    for batch in metric_logger.log_every(data_loader, 10, header):
+    for batch in metric_logger.log_every(data_loader, len(data_loader) // num_logs_per_epoch, header):
         images = batch[0]
         target = batch[-1]
         images = images.to(device, non_blocking=True)

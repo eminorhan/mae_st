@@ -208,7 +208,6 @@ class MaskedAutoencoderViT(nn.Module):
         Perform per-sample temporal masking 
         x: [N, L, D], sequence
         """
-        print(x.shape)
         N, L, D = x.shape  # batch, length, dim
         len_keep = int(L * (1 - mask_ratio))
 
@@ -237,7 +236,6 @@ class MaskedAutoencoderViT(nn.Module):
         Per-sample shuffling is done by argsort random noise.
         x: [N, L, D], sequence
         """
-        print(x.shape)
         N, L, D = x.shape  # batch, length, dim
         len_keep = int(L * (1 - mask_ratio))
 
