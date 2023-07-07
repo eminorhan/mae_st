@@ -10,11 +10,9 @@
 # --------------------------------------------------------
 
 import math
-from random import sample
 import sys
 from typing import Iterable, Optional
 
-import util.lr_sched as lr_sched
 import util.misc as misc
 import torch
 from util.logging import master_print as print
@@ -49,12 +47,6 @@ def train_one_epoch(
     optimizer.zero_grad()
 
     for data_iter_step, (samples, targets) in enumerate(metric_logger.log_every(data_loader, len(data_loader) // num_logs_per_epoch, header)):
-
-        # print('Iter:', data_iter_step, samples.max(), samples.min(), targets)
-
-        # we use a per iteration (instead of per epoch) lr scheduler
-        if data_iter_step % accum_iter == 0:
-            lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
 
         if len(samples.shape) == 6:
             b, r, c, t, h, w = samples.shape
@@ -94,12 +86,12 @@ def train_one_epoch(
         metric_logger.update(cpu_mem=misc.cpu_mem_usage()[0])
         metric_logger.update(cpu_mem_all=misc.cpu_mem_usage()[1])
         metric_logger.update(gpu_mem=misc.gpu_mem_usage())
+
         min_lr = 10.0
         max_lr = 0.0
         for group in optimizer.param_groups:
             min_lr = min(min_lr, group["lr"])
             max_lr = max(max_lr, group["lr"])
-
         metric_logger.update(lr=max_lr)
 
     # gather the stats from all processes
@@ -109,7 +101,7 @@ def train_one_epoch(
 
 
 @torch.no_grad()
-def evaluate(data_loader, model, device):
+def evaluate(data_loader, model, device, fp32=True):
     criterion = torch.nn.CrossEntropyLoss()
 
     metric_logger = misc.MetricLogger(delimiter="  ")
@@ -119,9 +111,8 @@ def evaluate(data_loader, model, device):
     # switch to evaluation mode
     model.eval()
 
-    for batch in metric_logger.log_every(data_loader, len(data_loader) // num_logs_per_epoch, header):
-        images = batch[0]
-        target = batch[-1]
+    for _, (images, target) in enumerate(metric_logger.log_every(data_loader, len(data_loader) // num_logs_per_epoch, header)):
+
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
 
@@ -131,7 +122,7 @@ def evaluate(data_loader, model, device):
             target = target.view(b * r)
 
         # compute output
-        with torch.cuda.amp.autocast():
+        with torch.cuda.amp.autocast(enabled=not fp32):
             output = model(images)
             loss = criterion(output, target)
 
