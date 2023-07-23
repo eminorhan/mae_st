@@ -334,11 +334,8 @@ class Kinetics(torch.utils.data.Dataset):
         max_scale,
         crop_size,
     ):
-        aug_transform = create_random_augment(
-            input_size=(frames.size(1), frames.size(2)),
-            auto_augment=self.aa_type,
-            interpolation="bicubic",
-        )
+        aug_transform = create_random_augment(input_size=(frames.size(1), frames.size(2)), auto_augment=self.aa_type, interpolation="bicubic")
+        
         # T H W C -> T C H W.
         frames = frames.permute(0, 3, 1, 2)
         list_img = self._frame_to_list_img(frames)

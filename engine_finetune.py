@@ -36,9 +36,6 @@ def train_one_epoch(
     model.train(True)
     metric_logger = misc.MetricLogger(delimiter="  ")
     metric_logger.add_meter("lr", misc.SmoothedValue(window_size=1, fmt="{value:.6f}"))
-    metric_logger.add_meter("cpu_mem", misc.SmoothedValue(window_size=1, fmt="{value:.6f}"))
-    metric_logger.add_meter("cpu_mem_all", misc.SmoothedValue(window_size=1, fmt="{value:.6f}"))
-    metric_logger.add_meter("gpu_mem", misc.SmoothedValue(window_size=1, fmt="{value:.6f}"))
     header = "Epoch: [{}]".format(epoch)
     num_logs_per_epoch = 1
 
@@ -83,9 +80,6 @@ def train_one_epoch(
         torch.cuda.synchronize()
 
         metric_logger.update(loss=loss_value)
-        metric_logger.update(cpu_mem=misc.cpu_mem_usage()[0])
-        metric_logger.update(cpu_mem_all=misc.cpu_mem_usage()[1])
-        metric_logger.update(gpu_mem=misc.gpu_mem_usage())
 
         min_lr = 10.0
         max_lr = 0.0

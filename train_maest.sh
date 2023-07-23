@@ -17,10 +17,10 @@ export WORLD_SIZE=4
 # vit-h/14
 srun python -u /scratch/eo41/mae_st/main_pretrain.py \
     --path_to_data_dir /scratch/eo41/data-video/minute/S \
-    --save_prefix "s_vith14_224_8_1_16_normpixloss_m09_noamp_Adam0001" \
+    --save_prefix "s_vith14_224_16_1_16_normpixloss_m09_noamp_Adam0001" \
     --output_dir /scratch/eo41/mae_st/say_maest \
     --model mae_vit_huge_patch14 \
-    --resume "" \
+    --resume "/scratch/eo41/mae_st/say_maest/s_vith14_224_16_1_16_normpixloss_m09_noamp_Adam0001.pth" \
     --batch_size_per_gpu 1 \
     --accum_iter 1 \
     --epochs 100000 \
@@ -32,7 +32,7 @@ srun python -u /scratch/eo41/mae_st/main_pretrain.py \
     --num_workers 16 \
     --t_patch_size 2 \
     --repeat_aug 16 \
-    --sampling_rate 8 \
+    --sampling_rate 16 \
     --norm_pix_loss \
     --lr 0.0001 \
     --weight_decay 0.05 \

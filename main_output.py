@@ -35,7 +35,7 @@ from timm.models.layers import trunc_normal_
 
 
 def get_args_parser():
-    parser = argparse.ArgumentParser("MAE fine-tuning for image classification", add_help=False)
+    parser = argparse.ArgumentParser("Embeddings from ViT models trained with MAE-ST", add_help=False)
     parser.add_argument("--batch_size_per_gpu", default=64, type=int, help="Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus")
     parser.add_argument("--epochs", default=50, type=int)
     parser.add_argument("--accum_iter", default=1, type=int, help="Accumulate gradient iterations (for increasing the effective batch size under memory constraints)")
@@ -44,8 +44,8 @@ def get_args_parser():
     # Model parameters
     parser.add_argument("--model", default="vit_large_patch16", type=str, metavar="MODEL", help="Name of model to train")
     parser.add_argument("--input_size", default=224, type=int, help="images input size")
-    parser.add_argument("--dropout", type=float, default=0.3)
-    parser.add_argument("--drop_path_rate", type=float, default=0.2, metavar="PCT", help="Drop path rate")
+    parser.add_argument("--dropout", type=float, default=0.5)
+    parser.add_argument("--drop_path_rate", type=float, default=0.1, metavar="PCT", help="Drop path rate (default: 0.1)")
 
     # Optimizer parameters
     parser.add_argument("--clip_grad", type=float, default=None, metavar="NORM", help="Clip gradient norm (default: None, no clipping)")
@@ -63,21 +63,12 @@ def get_args_parser():
     parser.add_argument("--recount", type=int, default=1, help="Random erase count (default: 1)")
     parser.add_argument("--resplit", action="store_true", default=False, help="Do not random erase first (clean) augmentation split")
 
-    # * Mixup params
-    parser.add_argument("--mixup", type=float, default=0, help="mixup alpha, mixup enabled if > 0.")
-    parser.add_argument("--cutmix", type=float, default=0, help="cutmix alpha, cutmix enabled if > 0.")
-    parser.add_argument("--cutmix_minmax", type=float, nargs="+", default=None, help="cutmix min/max ratio, overrides alpha and enables cutmix if set (default: None)")
-    parser.add_argument("--mixup_prob", type=float, default=1.0, help="Probability of performing mixup or cutmix when either/both is enabled")
-    parser.add_argument("--mixup_switch_prob", type=float, default=0.5, help="Probability of switching to cutmix when both mixup and cutmix enabled")
-    parser.add_argument("--mixup_mode", type=str, default="batch", help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
-
     # * Finetuning params
     parser.add_argument("--finetune", default="", help="finetune from checkpoint")
     parser.add_argument("--global_pool", action="store_true")
     parser.set_defaults(global_pool=True)
     parser.add_argument("--cls_token", action="store_false", dest="global_pool", help="Use class token instead of global pool for classification")
     parser.add_argument("--num_classes", default=700, type=int, help="number of the classes")
-    parser.add_argument("--train_dir", default="", help="path to train data")
     parser.add_argument("--val_dir", default="", help="path to val data")
     parser.add_argument("--output_dir", default="./output_dir", help="path where to save, empty for no saving")
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")
@@ -161,22 +152,6 @@ def main(args):
 
     cudnn.benchmark = True
 
-    dataset_train = Kinetics(
-        mode="finetune",
-        path_to_data_dir=args.train_dir,
-        sampling_rate=args.sampling_rate,
-        num_frames=args.num_frames,
-        train_jitter_scales=(256, 320),
-        repeat_aug=args.repeat_aug,
-        pretrain_rand_erase_prob=args.reprob,
-        pretrain_rand_erase_mode=args.remode,
-        pretrain_rand_erase_count=args.recount,
-        pretrain_rand_erase_split=args.resplit,
-        aa_type=args.aa,
-        rand_aug=args.rand_aug,
-        jitter_aspect_relative=args.jitter_aspect_relative,
-        jitter_scales_relative=args.jitter_scales_relative,
-    )
     dataset_val = Kinetics(
         mode="val",
         path_to_data_dir=args.val_dir,
@@ -189,21 +164,11 @@ def main(args):
 
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
-    sampler_train = torch.utils.data.DistributedSampler(dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True)
-    print("Sampler_train = %s" % str(sampler_train))
-
     if len(dataset_val) % num_tasks != 0:
         print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
+    
     sampler_val = torch.utils.data.DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
-
-    data_loader_train = torch.utils.data.DataLoader(dataset_train, sampler=sampler_train, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=True)
     data_loader_val = torch.utils.data.DataLoader(dataset_val, sampler=sampler_val, batch_size=23*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
-
-    mixup_fn = None
-    mixup_active = args.mixup > 0 or args.cutmix > 0.0 or args.cutmix_minmax is not None
-    if mixup_active:
-        print("Mixup is activated!")
-        mixup_fn = MixVideo(mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, mix_prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, label_smoothing=args.smoothing, num_classes=args.num_classes)
 
     model = models_vit.__dict__[args.model](**vars(args))
 
@@ -248,63 +213,23 @@ def main(args):
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[torch.cuda.current_device()])
     model_without_ddp = model.module
 
-    # build optimizer with layer-wise lr decay (lrd)
-    param_groups = misc.add_weight_decay(model_without_ddp, args.weight_decay, bias_wd=args.bias_wd)
-    optimizer = torch.optim.AdamW(param_groups, lr=args.lr)
-    loss_scaler = NativeScaler(fp32=args.fp32)
+    misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=None, loss_scaler=None)
 
-    if mixup_fn is not None:
-        # smoothing is handled with mixup label transform
-        criterion = SoftTargetCrossEntropy()
-    elif args.smoothing > 0.0:
-        criterion = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
-    else:
-        criterion = torch.nn.CrossEntropyLoss()
-
-    print("criterion = %s" % str(criterion))
-
-    misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
-
-    if args.eval:
-        test_stats = evaluate(data_loader_val, model, device)
-        print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
-        exit(0)
-
-    checkpoint_path = ""
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
-    max_accuracy = 0.0
 
-    for epoch in range(args.start_epoch, args.epochs):
-
-        data_loader_train.sampler.set_epoch(epoch)
-        train_stats = train_one_epoch(model, criterion, data_loader_train, optimizer, device, epoch, loss_scaler, args.clip_grad, mixup_fn, args=args, fp32=args.fp32)
-    
-        if args.output_dir:
-            checkpoint_path = misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
-
-        test_stats = evaluate(data_loader_val, model, device)
-        print(f"Accuracy of the model on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
-
-        max_accuracy = max(max_accuracy, test_stats["acc1"])
-        print(f"Max accuracy: {max_accuracy:.2f}%")
-
-        log_stats = {**{f"train_{k}": v for k, v in train_stats.items()}, **{f"test_{k}": v for k, v in test_stats.items()}, "epoch": epoch, "n_parameters": n_parameters}
-
-        if args.output_dir and misc.is_main_process():
-            with pathmgr.open(f"{args.output_dir}/{args.save_prefix}_log.txt", "a") as f:
-                f.write(json.dumps(log_stats) + "\n")
+    test_stats = evaluate(data_loader_val, model, device)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print("Training time {}".format(total_time_str))
-    return [checkpoint_path]
-
+    print("Total time {}".format(total_time_str))
+    
 
 if __name__ == '__main__':
     args = get_args_parser()
     args = args.parse_args()
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    args.eval = True
 
     # prepare data files
     train_files = find_mp4_files(directory=args.train_dir)
