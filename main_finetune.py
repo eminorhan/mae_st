@@ -23,6 +23,7 @@ import torch
 import torch.backends.cudnn as cudnn
 from iopath.common.file_io import g_pathmgr as pathmgr
 from engine_finetune import evaluate, train_one_epoch
+import util.lr_decay as lrd
 
 from util.decoder.mixup import MixUp as MixVideo
 from util.kinetics import Kinetics
@@ -45,13 +46,17 @@ def get_args_parser():
     parser.add_argument("--model", default="vit_large_patch16", type=str, metavar="MODEL", help="Name of model to train")
     parser.add_argument("--input_size", default=224, type=int, help="images input size")
     parser.add_argument("--dropout", type=float, default=0.3)
-    parser.add_argument("--drop_path_rate", type=float, default=0.2, metavar="PCT", help="Drop path rate")
+    parser.add_argument("--drop_path_rate", type=float, default=0.1, metavar="PCT", help="Drop path rate")
 
     # Optimizer parameters
     parser.add_argument("--clip_grad", type=float, default=None, metavar="NORM", help="Clip gradient norm (default: None, no clipping)")
     parser.add_argument("--weight_decay", type=float, default=0.05, help="weight decay (default: 0.05)")
     parser.add_argument("--lr", type=float, default=None, metavar="LR", help="learning rate (absolute lr)")
-
+    parser.add_argument("--blr", type=float, default=1e-3, metavar="LR", help="base learning rate: absolute_lr = base_lr * total_batch_size / 256")
+    parser.add_argument("--layer_decay", type=float, default=0.75, help="layer-wise lr decay from ELECTRA/BEiT")
+    parser.add_argument("--min_lr", type=float, default=1e-6, metavar="LR", help="lower lr bound for cyclic schedulers that hit 0")
+    parser.add_argument("--warmup_epochs", type=int, default=5, metavar="N", help="epochs to warmup LR")
+        
     # Augmentation parameters
     parser.add_argument("--color_jitter", type=float, default=None, metavar="PCT", help="Color jitter factor (enabled only when not using Auto/RandAug)")
     parser.add_argument("--aa", type=str, default="rand-m7-mstd0.5-inc1", metavar="NAME", help='Use AutoAugment policy. "v0" or "original". " + "(default: rand-m9-mstd0.5-inc1)')
@@ -83,7 +88,6 @@ def get_args_parser():
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")
     parser.add_argument("--seed", default=0, type=int)
     parser.add_argument("--resume", default="", help="resume from checkpoint")
-
     parser.add_argument("--start_epoch", default=0, type=int, metavar="N", help="start epoch")
     parser.add_argument("--eval", action="store_true", help="Perform evaluation only")
     parser.add_argument("--num_workers", default=10, type=int)
@@ -242,6 +246,11 @@ def main(args):
 
     eff_batch_size = (args.batch_size_per_gpu * args.accum_iter * misc.get_world_size() * args.repeat_aug)
 
+    if args.lr is None:  # only base_lr is specified
+        args.lr = args.blr * eff_batch_size / 256
+
+    print("base lr: %.2e" % (args.lr * 256 / eff_batch_size))
+    print("actual lr: %.2e" % args.lr)
     print("accumulate grad iterations: %d" % args.accum_iter)
     print("effective batch size: %d" % eff_batch_size)
 
@@ -249,7 +258,7 @@ def main(args):
     model_without_ddp = model.module
 
     # build optimizer with layer-wise lr decay (lrd)
-    param_groups = misc.add_weight_decay(model_without_ddp, args.weight_decay, bias_wd=args.bias_wd)
+    param_groups = lrd.param_groups_lrd(model_without_ddp, args.weight_decay, no_weight_decay_list=model_without_ddp.no_weight_decay(), layer_decay=args.layer_decay)    
     optimizer = torch.optim.AdamW(param_groups, lr=args.lr)
     loss_scaler = NativeScaler(fp32=args.fp32)
 

@@ -14,6 +14,8 @@ import sys
 from typing import Iterable, Optional
 
 import util.misc as misc
+import util.lr_sched as lr_sched
+
 import torch
 from util.logging import master_print as print
 from timm.data import Mixup
@@ -44,6 +46,10 @@ def train_one_epoch(
     optimizer.zero_grad()
 
     for data_iter_step, (samples, targets) in enumerate(metric_logger.log_every(data_loader, len(data_loader) // num_logs_per_epoch, header)):
+
+        # we use a per iteration (instead of per epoch) lr scheduler
+        if data_iter_step % accum_iter == 0:
+            lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
 
         if len(samples.shape) == 6:
             b, r, c, t, h, w = samples.shape

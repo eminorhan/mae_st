@@ -197,9 +197,7 @@ class Kinetics(torch.utils.data.Dataset):
             min_scale, max_scale = self._train_jitter_scales
             crop_size = self._train_crop_size
         elif self.mode in ["test"]:
-            temporal_sample_index = (
-                self._spatial_temporal_idx[index] // self._test_num_spatial_crops
-            )
+            temporal_sample_index = (self._spatial_temporal_idx[index] // self._test_num_spatial_crops)
             # spatial_sample_index is in [0, 1, 2]. Corresponding to left,
             # center, or right if width is larger than height, and top, middle,
             # or bottom if height is larger than width.
