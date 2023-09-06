@@ -231,11 +231,12 @@ if __name__ == '__main__':
     for clip in clips:
         # load and prepate eval video
         vid = prepare_video(os.path.join(args.clip_dir, clip))
+        clip_name = os.path.splitext(clip)[0]
 
         with torch.no_grad():
             loss, _, _, vis = model(vid.unsqueeze(0), mask_ratio=args.mask_ratio, visualize=True, mask_type=args.mask_type)
-            print(f"MAE temporal prediction loss on {clip}: {loss.item()}")
-            losses[clip] = loss.item()
+            print(f"MAE temporal prediction loss on {clip_name}: {loss.item()}")
+            losses[clip_name] = loss.item()
 
             vis = vis[0].permute(0, 2, 1, 3, 4)
             print(vis.shape)
@@ -246,7 +247,7 @@ if __name__ == '__main__':
 
             vis = torch.cat((a, b, c), 0)
 
-            save_image(vis, f"{args.output_dir}/{clip}.jpg", nrow=8, padding=1, normalize=True, scale_each=True)
+            save_image(vis, f"{args.output_dir}/{clip_name}.jpg", nrow=8, padding=1, normalize=True, scale_each=True)
 
     with open(f"{args.output_dir}/{args.savefile_name}.json", "w") as json_file:
         json.dump(losses, json_file)
