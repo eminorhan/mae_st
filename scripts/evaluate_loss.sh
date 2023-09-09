@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=240GB
-#SBATCH --time=02:00:00
+#SBATCH --time=00:59:00
 #SBATCH --job-name=eval_loss_maest
 #SBATCH --output=eval_loss_maest_%A_%a.out
 #SBATCH --array=0

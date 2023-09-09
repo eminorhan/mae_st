@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=240GB
-#SBATCH --time=48:00:00
+#SBATCH --time=6:00:00
 #SBATCH --job-name=train_maest
 #SBATCH --output=train_maest_%A_%a.out
 #SBATCH --array=0
@@ -17,7 +17,7 @@ export WORLD_SIZE=1
 # vit-h/14
 srun python -u ../main_pretrain.py \
     --path_to_data_dir /scratch/eo41/adept/videos/train \
-    --save_prefix "adept_vitb14_224_sampling8_bs16_repeat2_pixloss_m09_accum1_Adam0001" \
+    --save_prefix "adept_vitb14_224_sampling8_bs16_repeat2_pixloss_m09_accum1_Adam0001_predtdim16" \
     --output_dir ../models_maest \
     --model mae_vit_base_patch14 \
     --resume "" \
@@ -36,7 +36,7 @@ srun python -u ../main_pretrain.py \
     --lr 0.0001 \
     --weight_decay 0.05 \
     --mask_ratio 0.9 \
-    --pred_t_dim 8 \
+    --pred_t_dim 16 \
     --clip_grad 0.1
 
 echo "Done"

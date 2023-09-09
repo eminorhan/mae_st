@@ -183,9 +183,9 @@ def temporal_sampling(frames, start_idx, end_idx, num_samples):
 
 def prepare_video(path):
     video_container = av.open(path)
-    frames, _, _ = pyav_decode(video_container, 12, 16, 0, num_clips_uniform=1, target_fps=25, use_offset=False)
+    frames, _, _ = pyav_decode(video_container, 8, 16, -1, num_clips_uniform=10, target_fps=25, use_offset=False)
     print(frames.shape)
-    frames = temporal_sampling(frames, 0, 175, 16)
+    frames = temporal_sampling(frames, 0, 120, 16)
     frames = tensor_normalize(frames, torch.tensor(MEAN), torch.tensor(STD)).permute(3, 0, 1, 2)
     frames = spatial_sampling(
         frames,
