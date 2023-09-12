@@ -22,6 +22,8 @@ def get_args_parser():
     parser.add_argument("--model_path", default="", type=str, help="path to pretrained model")
     parser.add_argument("--savefile_name", default="losses", type=str, help="name of file to save losses in")
     parser.add_argument("--model_arch", default="mae_vit_huge_patch14", type=str, help="Model architecture")
+    parser.add_argument("--num_samples", default=1, type=int, help="number of samples to sample from a video clip")
+    parser.add_argument("--plot", default=False, type=bool, help="plots images if true")
 
     return parser
 
@@ -184,19 +186,18 @@ def temporal_sampling(frames, start_idx, end_idx, num_samples):
 def prepare_video(path):
     video_container = av.open(path)
     frames, _, _ = pyav_decode(video_container, 8, 16, -1, num_clips_uniform=10, target_fps=25, use_offset=False)
-    print(frames.shape)
     frames = temporal_sampling(frames, 0, 120, 16)
     frames = tensor_normalize(frames, torch.tensor(MEAN), torch.tensor(STD)).permute(3, 0, 1, 2)
     frames = spatial_sampling(
         frames,
-        spatial_idx=1,
-        min_scale=256,
-        max_scale=256,
+        spatial_idx=-1,
+        min_scale=224,
+        max_scale=224,
         crop_size=224,
         random_horizontal_flip=False,
         inverse_uniform_sampling=False,
-        aspect_ratio=None,
-        scale=None,
+        aspect_ratio=[1,1],
+        scale=[1,1],
         motion_shift=False,
     )
     return frames
@@ -229,25 +230,30 @@ if __name__ == '__main__':
     losses = {}
 
     for clip in clips:
-        # load and prepate eval video
-        vid = prepare_video(os.path.join(args.clip_dir, clip))
-        clip_name = os.path.splitext(clip)[0]
+        # we're going to sample multiple clips from each video
+        clip_losses = []
 
-        with torch.no_grad():
-            loss, _, _, vis = model(vid.unsqueeze(0), mask_ratio=args.mask_ratio, visualize=True, mask_type=args.mask_type)
-            print(f"MAE temporal prediction loss on {clip_name}: {loss.item()}")
-            losses[clip_name] = loss.item()
+        for sample in range(args.num_samples):
+            # load and prepate eval video
+            vid = prepare_video(os.path.join(args.clip_dir, clip))
+            clip_name = os.path.splitext(clip)[0]
 
-            vis = vis[0].permute(0, 2, 1, 3, 4)
-            print(vis.shape)
+            with torch.no_grad():
+                loss, _, _, vis = model(vid.unsqueeze(0), mask_ratio=args.mask_ratio, visualize=True, mask_type=args.mask_type)
+                print(f"MAE temporal prediction loss on {clip_name}: {loss.item()}")
+                clip_losses.append(loss.item())
 
-            a = vis[0, :, :, :, :]
-            b = vis[1, :, :, :, :]
-            c = vis[2, :, :, :, :]
+                vis = vis[0].permute(0, 2, 1, 3, 4)
+                a = vis[0, :, :, :, :]  # original
+                b = vis[1, :, :, :, :]  # masked
+                c = vis[2, :, :, :, :]  # reconstruction
 
-            vis = torch.cat((a, b, c), 0)
+                vis = torch.cat((a, b, c), 0)
 
-            save_image(vis, f"{args.output_dir}/{clip_name}.jpg", nrow=8, padding=1, normalize=True, scale_each=True)
+                if args.plot:
+                    save_image(vis, f"{args.output_dir}/{clip_name}.jpg", nrow=16, padding=1, normalize=True, scale_each=True)
+
+        losses[clip_name] = np.mean(clip_losses)
 
     with open(f"{args.output_dir}/{args.savefile_name}.json", "w") as json_file:
         json.dump(losses, json_file)

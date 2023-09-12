@@ -42,7 +42,7 @@ class MaskedAutoencoderViT(nn.Module):
         sep_pos_embed=False,
         trunc_init=False,
         cls_embed=False,
-        pred_t_dim=8,
+        pred_t_dim=16,
         **kwargs,
     ):
         super().__init__()
