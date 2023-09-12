@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH --gres=gpu:a100:1
+#SBATCH --gres=gpu:rtx8000:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=200GB
-#SBATCH --time=02:00:00
+#SBATCH --time=00:30:00
 #SBATCH --job-name=eval_loss_maest
 #SBATCH --output=eval_loss_maest_%A_%a.out
 #SBATCH --array=0
@@ -22,9 +22,9 @@ python -u ../evaluate_loss.py \
     --model_path "../models_maest/adept_vitb14_224_sampling8_bs16_repeat2_pixloss_m09_accum1_Adam0001_predtdim16.pth" \
     --clip_dir "/scratch/eo41/adept/videos/test" \
     --output_dir "../outputs" \
-    --savefile_name "adept_demo" \
+    --savefile_name "adept_demo_samples5" \
     --mask_ratio 0.5 \
     --mask_type "temporal" \
-    --num_samples 3
+    --num_samples 5
 
 echo "Done"

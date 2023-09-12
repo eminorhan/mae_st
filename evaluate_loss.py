@@ -24,6 +24,7 @@ def get_args_parser():
     parser.add_argument("--model_arch", default="mae_vit_huge_patch14", type=str, help="Model architecture")
     parser.add_argument("--num_samples", default=1, type=int, help="number of samples to sample from a video clip")
     parser.add_argument("--plot", default=False, type=bool, help="plots images if true")
+    parser.add_argument("--device", default="cuda", type=str, help="device to use for testing")
 
     return parser
 
@@ -218,6 +219,8 @@ if __name__ == '__main__':
     args = args.parse_args()
     print(args)
     
+    device = torch.device(args.device)
+
     # set up and load model
     model = models_mae.__dict__[args.model_arch](t_patch_size=2, cls_embed=True, norm_pix_loss=True, sep_pos_embed=True, decoder_depth=4)
     model.eval()
@@ -225,6 +228,7 @@ if __name__ == '__main__':
     checkpoint = torch.load(args.model_path, map_location='cpu')
     msg = model.load_state_dict(checkpoint['model'], strict=False)
     print(msg)
+    model.to(device)  # move to device
 
     clips = get_mp4_files(args.clip_dir)
     losses = {}
@@ -237,21 +241,25 @@ if __name__ == '__main__':
             # load and prepate eval video
             vid = prepare_video(os.path.join(args.clip_dir, clip))
             clip_name = os.path.splitext(clip)[0]
-
+            vid = vid.unsqueeze(0) 
+            vid = vid.to(device)  # move to device
+            
             with torch.no_grad():
-                loss, _, _, vis = model(vid.unsqueeze(0), mask_ratio=args.mask_ratio, visualize=True, mask_type=args.mask_type)
-                print(f"MAE temporal prediction loss on {clip_name}: {loss.item()}")
-                clip_losses.append(loss.item())
-
-                vis = vis[0].permute(0, 2, 1, 3, 4)
-                a = vis[0, :, :, :, :]  # original
-                b = vis[1, :, :, :, :]  # masked
-                c = vis[2, :, :, :, :]  # reconstruction
-
-                vis = torch.cat((a, b, c), 0)
-
                 if args.plot:
+                    loss, _, _, vis = model(vid, mask_ratio=args.mask_ratio, visualize=True, mask_type=args.mask_type)
+                    print(f"MAE temporal prediction loss on {clip_name}: {loss.item()}")
+                    clip_losses.append(loss.item())
+
+                    vis = vis[0].permute(0, 2, 1, 3, 4)
+                    a = vis[0, :, :, :, :]  # original
+                    b = vis[1, :, :, :, :]  # masked
+                    c = vis[2, :, :, :, :]  # reconstruction
+                    vis = torch.cat((a, b, c), 0)
                     save_image(vis, f"{args.output_dir}/{clip_name}.jpg", nrow=16, padding=1, normalize=True, scale_each=True)
+                else:
+                    loss, _, _ = model(vid, mask_ratio=args.mask_ratio, visualize=False, mask_type=args.mask_type)
+                    print(f"MAE temporal prediction loss on {clip_name}: {loss.item()}")
+                    clip_losses.append(loss.item())
 
         losses[clip_name] = np.mean(clip_losses)
 
