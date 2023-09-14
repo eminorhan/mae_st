@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=4
-#SBATCH --gres=gpu:a100:4
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=480GB
-#SBATCH --time=48:00:00
+#SBATCH --nodes=4
+#SBATCH --ntasks-per-node=1
+#SBATCH --gres=gpu:a100:1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=240GB
+#SBATCH --time=00:10:00
 #SBATCH --job-name=train_maest
 #SBATCH --output=train_maest_%A_%a.out
 #SBATCH --array=0
@@ -17,7 +17,7 @@ export WORLD_SIZE=4
 # vit-h/14
 srun python -u ../main_pretrain.py \
     --path_to_data_dir /scratch/eo41/data-video/minute/S \
-    --save_prefix "s_vith14_224_4_1_16_normpixloss_m09_accum4_Adam0001" \
+    --save_prefix "demo_s_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001" \
     --output_dir ../models_maest \
     --model mae_vit_huge_patch14 \
     --resume "" \
@@ -32,12 +32,11 @@ srun python -u ../main_pretrain.py \
     --num_workers 16 \
     --t_patch_size 2 \
     --repeat_aug 16 \
-    --sampling_rate 4 \
-    --norm_pix_loss \
+    --sampling_rate 8 \
     --lr 0.0001 \
     --weight_decay 0.05 \
     --mask_ratio 0.9 \
-    --pred_t_dim 8 \
+    --pred_t_dim 16 \
     --clip_grad 0.1
 
 echo "Done"

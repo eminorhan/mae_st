@@ -222,7 +222,8 @@ if __name__ == '__main__':
     device = torch.device(args.device)
 
     # set up and load model
-    model = models_mae.__dict__[args.model_arch](t_patch_size=2, cls_embed=True, norm_pix_loss=True, sep_pos_embed=True, decoder_depth=4)
+    # TODO: add pred_t_dim as an argument
+    model = models_mae.__dict__[args.model_arch](t_patch_size=2, cls_embed=True, norm_pix_loss=True, sep_pos_embed=True, decoder_depth=4, pred_t_dim=8)
     model.eval()
 
     checkpoint = torch.load(args.model_path, map_location='cpu')

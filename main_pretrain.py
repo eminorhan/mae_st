@@ -75,10 +75,9 @@ def get_args_parser():
     parser.add_argument("--trunc_init", action="store_true")
     parser.add_argument("--fp32", action="store_true")
     parser.set_defaults(fp32=True)
-    # parser.add_argument("--jitter_scales_relative", default=[0.5, 1.0], type=float, nargs="+")
-    # parser.add_argument("--jitter_aspect_relative", default=[0.75, 1.3333], type=float, nargs="+")
-    parser.add_argument("--jitter_scales_relative", default=[1, 1], type=float, nargs="+")
-    parser.add_argument("--jitter_aspect_relative", default=[1, 1], type=float, nargs="+")
+    parser.add_argument("--target_fps", default=30, type=int)
+    parser.add_argument("--jitter_scales_relative", default=[0.5, 1.0], type=float, nargs="+")
+    parser.add_argument("--jitter_aspect_relative", default=[0.75, 1.3333], type=float, nargs="+")
     parser.add_argument("--beta", default=None, type=float, nargs="+")
     parser.add_argument("--pred_t_dim", type=int, default=16)
     parser.add_argument("--cls_embed", action="store_true")
@@ -114,7 +113,8 @@ def main(args):
         path_to_data_dir=args.path_to_data_dir,
         sampling_rate=args.sampling_rate,
         num_frames=args.num_frames,
-        train_jitter_scales=(224, 224),
+        target_fps=args.target_fps,
+        train_jitter_scales=(256, 320),
         repeat_aug=args.repeat_aug,
         jitter_aspect_relative=args.jitter_aspect_relative,
         jitter_scales_relative=args.jitter_scales_relative,
