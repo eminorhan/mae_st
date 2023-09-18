@@ -40,9 +40,7 @@ def _pil_interp(method):
         return Image.BILINEAR
 
 
-def random_short_side_scale_jitter(
-    images, min_size, max_size, inverse_uniform_sampling=False
-):
+def random_short_side_scale_jitter(images, min_size, max_size, inverse_uniform_sampling=False):
     """
     Perform a spatial short scale jittering on the given images.
     Args:
@@ -72,12 +70,7 @@ def random_short_side_scale_jitter(
         new_height = int(math.floor((float(height) / width) * size))
     else:
         new_width = int(math.floor((float(width) / height) * size))
-    return torch.nn.functional.interpolate(
-        images,
-        size=(new_height, new_width),
-        mode="bilinear",
-        align_corners=False,
-    )
+    return torch.nn.functional.interpolate(images, size=(new_height, new_width), mode="bilinear", align_corners=False)
 
 
 def random_crop(images, size):
@@ -149,12 +142,7 @@ def uniform_crop(images, size, spatial_idx, scale_size=None):
             width, height = scale_size, int(height / width * scale_size)
         else:
             width, height = int(width / height * scale_size), scale_size
-        images = torch.nn.functional.interpolate(
-            images,
-            size=(height, width),
-            mode="bilinear",
-            align_corners=False,
-        )
+        images = torch.nn.functional.interpolate(images, size=(height, width), mode="bilinear", align_corners=False)
 
     y_offset = int(math.ceil((height - size) / 2))
     x_offset = int(math.ceil((width - size) / 2))
@@ -282,6 +270,7 @@ def contrast_jitter(var, images):
     img_gray = grayscale(images)
     img_gray[:] = torch.mean(img_gray, dim=(1, 2, 3), keepdim=True)
     images = blend(images, img_gray, alpha)
+
     return images
 
 
@@ -323,10 +312,7 @@ def lighting_jitter(images, alphastd, eigval, eigvec):
     alpha = np.random.normal(0, alphastd, size=(1, 3))
     eig_vec = np.array(eigvec)
     eig_val = np.reshape(eigval, (1, 3))
-    rgb = np.sum(
-        eig_vec * np.repeat(alpha, 3, axis=0) * np.repeat(eig_val, 3, axis=0),
-        axis=1,
-    )
+    rgb = np.sum(eig_vec * np.repeat(alpha, 3, axis=0) * np.repeat(eig_val, 3, axis=0), axis=1)
     out_images = torch.zeros_like(images)
     if len(images.shape) == 3:
         # C H W
@@ -352,7 +338,7 @@ def lighting_jitter(images, alphastd, eigval, eigvec):
 
 def color_normalization(images, mean, stddev):
     """
-    Perform color nomration on the given images.
+    Perform color normalization on the given images.
     Args:
         images (tensor): images to perform color normalization. Dimension is
             `num frames` x `channel` x `height` x `width`.
@@ -445,16 +431,11 @@ def random_resized_crop(images, target_height, target_width, scale=(0.8, 1.0), r
 
     i, j, h, w = _get_param_spatial_crop(scale, ratio, height, width)
     cropped = images[:, :, i : i + h, j : j + w]
-    return torch.nn.functional.interpolate(cropped, size=(target_height, target_width), mode="bilinear", align_corners=False)
+    cropped = torch.nn.functional.interpolate(cropped, size=(target_height, target_width), mode="bilinear", align_corners=False)
+    return cropped
 
 
-def random_resized_crop_with_shift(
-    images,
-    target_height,
-    target_width,
-    scale=(0.8, 1.0),
-    ratio=(3.0 / 4.0, 4.0 / 3.0),
-):
+def random_resized_crop_with_shift(images, target_height, target_width, scale=(0.8, 1.0), ratio=(3.0 / 4.0, 4.0 / 3.0)):
     """
     This is similar to random_resized_crop. However, it samples two different
     boxes (for cropping) for the first and last frame. It then linearly
@@ -493,11 +474,7 @@ def random_resized_crop_with_shift(
     return out
 
 
-def create_random_augment(
-    input_size,
-    auto_augment=None,
-    interpolation="bilinear",
-):
+def create_random_augment(input_size, auto_augment=None, interpolation="bilinear"):
     """
     Get video randaug transform.
 
@@ -527,13 +504,7 @@ def create_random_augment(
     raise NotImplementedError
 
 
-def random_sized_crop_img(
-    im,
-    size,
-    jitter_scale=(0.08, 1.0),
-    jitter_aspect=(3.0 / 4.0, 4.0 / 3.0),
-    max_iter=10,
-):
+def random_sized_crop_img(im, size, jitter_scale=(0.08, 1.0), jitter_aspect=(3.0 / 4.0, 4.0 / 3.0), max_iter=10):
     """
     Performs Inception-style cropping (used for training).
     """
@@ -573,13 +544,7 @@ class RandomResizedCropAndInterpolation:
         interpolation: Default: PIL.Image.BILINEAR
     """
 
-    def __init__(
-        self,
-        size,
-        scale=(0.08, 1.0),
-        ratio=(3.0 / 4.0, 4.0 / 3.0),
-        interpolation="bilinear",
-    ):
+    def __init__(self, size, scale=(0.08, 1.0), ratio=(3.0 / 4.0, 4.0 / 3.0), interpolation="bilinear"):
         if isinstance(size, tuple):
             self.size = size
         else:
@@ -651,9 +616,7 @@ class RandomResizedCropAndInterpolation:
 
     def __repr__(self):
         if isinstance(self.interpolation, (tuple, list)):
-            interpolate_str = " ".join(
-                [_pil_interpolation_to_str[x] for x in self.interpolation]
-            )
+            interpolate_str = " ".join([_pil_interpolation_to_str[x] for x in self.interpolation])
         else:
             interpolate_str = _pil_interpolation_to_str[self.interpolation]
         format_string = self.__class__.__name__ + "(size={0}".format(self.size)

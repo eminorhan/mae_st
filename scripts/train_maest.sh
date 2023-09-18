@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#SBATCH --nodes=4
-#SBATCH --ntasks-per-node=1
-#SBATCH --gres=gpu:a100:1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=240GB
-#SBATCH --time=00:10:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=4
+#SBATCH --gres=gpu:a100:4
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=480GB
+#SBATCH --time=48:00:00
 #SBATCH --job-name=train_maest
 #SBATCH --output=train_maest_%A_%a.out
 #SBATCH --array=0

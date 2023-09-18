@@ -37,6 +37,7 @@ class Kinetics(torch.utils.data.Dataset):
         train_jitter_scales=(256, 320),
         train_crop_size=224,
         train_random_horizontal_flip=True,
+        train_color_jitter=False,
         # test setting, multi crops
         test_num_ensemble_views=10,
         test_num_spatial_crops=3,
@@ -53,6 +54,7 @@ class Kinetics(torch.utils.data.Dataset):
         repeat_aug=1,
         aa_type="rand-m7-n4-mstd0.5-inc1",
         pretrain_rand_flip=True,
+        pretrain_color_jitter=False,
         pretrain_rand_erase_prob=0.25,
         pretrain_rand_erase_mode="pixel",
         pretrain_rand_erase_count=1,
@@ -88,6 +90,7 @@ class Kinetics(torch.utils.data.Dataset):
         self.mode = mode
         self.aa_type = aa_type
         self.pretrain_rand_flip = pretrain_rand_flip
+        self.pretrain_color_jitter = pretrain_color_jitter
         self.pretrain_rand_erase_prob = pretrain_rand_erase_prob
         self.pretrain_rand_erase_mode = pretrain_rand_erase_mode
         self.pretrain_rand_erase_count = pretrain_rand_erase_count
@@ -106,6 +109,7 @@ class Kinetics(torch.utils.data.Dataset):
         self._train_jitter_scales = train_jitter_scales
         self._train_crop_size = train_crop_size
         self._train_random_horizontal_flip = train_random_horizontal_flip
+        self._train_color_jitter = train_color_jitter
 
         self._test_num_ensemble_views = test_num_ensemble_views
         self._test_num_spatial_crops = test_num_spatial_crops
@@ -309,6 +313,7 @@ class Kinetics(torch.utils.data.Dataset):
                         max_scale=max_scale,
                         crop_size=crop_size,
                         random_horizontal_flip=self._train_random_horizontal_flip,
+                        color_jitter=self._train_color_jitter,
                         inverse_uniform_sampling=self._inverse_uniform_sampling,
                         aspect_ratio=relative_aspect,
                         scale=relative_scales,
@@ -324,14 +329,9 @@ class Kinetics(torch.utils.data.Dataset):
         else:
             raise RuntimeError("Failed to fetch video after {} retries.".format(self._num_retries))
 
-    def _aug_frame(
-        self,
-        frames,
-        spatial_sample_index,
-        min_scale,
-        max_scale,
-        crop_size,
-    ):
+
+    def _aug_frame(self, frames, spatial_sample_index, min_scale, max_scale, crop_size):
+
         aug_transform = create_random_augment(input_size=(frames.size(1), frames.size(2)), auto_augment=self.aa_type, interpolation="bicubic")
         
         # T H W C -> T C H W.
@@ -355,6 +355,7 @@ class Kinetics(torch.utils.data.Dataset):
             max_scale=max_scale,
             crop_size=crop_size,
             random_horizontal_flip=self.pretrain_rand_flip,
+            color_jitter=self.pretrain_color_jitter,
             inverse_uniform_sampling=False,
             aspect_ratio=relative_aspect,
             scale=relative_scales,

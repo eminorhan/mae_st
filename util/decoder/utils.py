@@ -80,6 +80,7 @@ def spatial_sampling(
     max_scale=320,
     crop_size=224,
     random_horizontal_flip=True,
+    color_jitter=False,
     inverse_uniform_sampling=False,
     aspect_ratio=None,
     scale=None,
@@ -122,11 +123,7 @@ def spatial_sampling(
             )
             frames = transform.random_crop(frames, crop_size)
         else:
-            transform_func = (
-                transform.random_resized_crop_with_shift
-                if motion_shift
-                else transform.random_resized_crop
-            )
+            transform_func = (transform.random_resized_crop_with_shift if motion_shift else transform.random_resized_crop)
             frames = transform_func(
                 images=frames,
                 target_height=crop_size,
@@ -136,6 +133,8 @@ def spatial_sampling(
             )
         if random_horizontal_flip:
             frames = transform.horizontal_flip(0.5, frames)
+        if color_jitter:
+            frames = transform.color_jitter(frames, img_brightness=0.4, img_contrast=0.4, img_saturation=0.2)    
     else:
         # The testing is deterministic and no jitter should be performed.
         # min_scale, max_scale, and crop_size are expect to be the same.

@@ -197,8 +197,8 @@ def prepare_video(path):
         crop_size=224,
         random_horizontal_flip=False,
         inverse_uniform_sampling=False,
-        aspect_ratio=[1,1],
-        scale=[1,1],
+        aspect_ratio=[0.6667, 1.5],
+        scale=[0.5, 1.0],
         motion_shift=False,
     )
     return frames
