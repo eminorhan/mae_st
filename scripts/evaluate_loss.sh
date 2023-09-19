@@ -19,8 +19,8 @@
 #     --mask_type "random" \
 #     --num_samples 5 \
 #     --pred_t_dim 8 \
-#     --jitter_scales_relative 0.5 1.0 \
-#     --jitter_aspect_relative 0.6667 1.5
+#     --test_jitter_scales 0.5 1.0 \
+#     --test_jitter_aspect 0.6667 1.5
 
 # # pretrained on saycam, finetuned on adept
 # python -u ../evaluate_loss.py \
@@ -33,8 +33,8 @@
 #     --mask_type "random" \
 #     --num_samples 5 \
 #     --pred_t_dim 8 \
-#     --jitter_scales_relative 0.5 1.0 \
-#     --jitter_aspect_relative 0.6667 1.5
+#     --test_jitter_scales 0.5 1.0 \
+#     --test_jitter_aspect 0.6667 1.5
 
 # only trained on saycam
 python -u ../evaluate_loss.py \
@@ -47,7 +47,7 @@ python -u ../evaluate_loss.py \
     --mask_type "random" \
     --num_samples 5 \
     --pred_t_dim 8 \
-    --jitter_scales_relative 0.5 1.0 \
-    --jitter_aspect_relative 0.6667 1.5
+    --test_jitter_scales 0.5 1.0 \
+    --test_jitter_aspect 0.6667 1.5
 
 echo "Done"
