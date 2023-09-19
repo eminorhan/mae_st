@@ -1,9 +1,9 @@
 #!/bin/bash
 
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=200GB
-#SBATCH --time=00:29:00
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=80GB
+#SBATCH --time=00:39:00
 #SBATCH --job-name=eval_loss_maest
 #SBATCH --output=eval_loss_maest_%A_%a.out
 #SBATCH --array=0
@@ -17,7 +17,10 @@
 #     --savefile_name "adept_vitb14_strongaug_mask07_random_5" \
 #     --mask_ratio 0.7 \
 #     --mask_type "random" \
-#     --num_samples 5
+#     --num_samples 5 \
+#     --pred_t_dim 8 \
+#     --jitter_scales_relative 0.5 1.0 \
+#     --jitter_aspect_relative 0.6667 1.5
 
 # # pretrained on saycam, finetuned on adept
 # python -u ../evaluate_loss.py \
@@ -28,17 +31,23 @@
 #     --savefile_name "s+adept_demo_samples5_mask07_random" \
 #     --mask_ratio 0.7 \
 #     --mask_type "random" \
-#     --num_samples 5
+#     --num_samples 5 \
+#     --pred_t_dim 8 \
+#     --jitter_scales_relative 0.5 1.0 \
+#     --jitter_aspect_relative 0.6667 1.5
 
 # only trained on saycam
 python -u ../evaluate_loss.py \
     --model_arch mae_vit_huge_patch14 \
-    --model_path "../models_maest/s+adept_vith14_mask098.pth" \
+    --model_path "../models_maest/s+adept_vith14_mask099.pth" \
     --clip_dir "/scratch/eo41/adept/videos/test" \
     --output_dir "../outputs" \
     --savefile_name "s+adept_samples5_mask07_random" \
     --mask_ratio 0.7 \
     --mask_type "random" \
-    --num_samples 5
+    --num_samples 5 \
+    --pred_t_dim 8 \
+    --jitter_scales_relative 0.5 1.0 \
+    --jitter_aspect_relative 0.6667 1.5
 
 echo "Done"

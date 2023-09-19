@@ -14,7 +14,6 @@ import datetime
 import json
 import os
 import time
-from types import NoneType
 import torch
 import torch.backends.cudnn as cudnn
 from iopath.common.file_io import g_pathmgr as pathmgr
@@ -30,25 +29,25 @@ def get_args_parser():
     parser = argparse.ArgumentParser("Spatiotemporal MAE pre-training", add_help=False)
     parser.add_argument("--batch_size_per_gpu", default=4, type=int, help="Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus")
     parser.add_argument("--epochs", default=100, type=int)
-    parser.add_argument("--accum_iter", default=1, type=int, help="Accumulate gradient iterations (for increasing the effective batch size under memory constraints)")
-    parser.add_argument("--save_prefix", default="", type=str, help="""prefix for saving checkpoint and log files""")
+    parser.add_argument("--accum_iter", default=1, type=int, help="Accumulate gradient iterations")
+    parser.add_argument("--save_prefix", default="", type=str, help="Prefix for saving checkpoint and log files")
 
     # Model parameters
     parser.add_argument("--model", default="mae_vit_large_patch16", type=str, help="Name of model to train")
-    parser.add_argument("--input_size", default=224, type=int, help="images input size")
+    parser.add_argument("--input_size", default=224, type=int, help="Image size")
     parser.add_argument("--mask_ratio", default=0.9, type=float, help="Masking ratio (percentage of removed patches).")
     parser.add_argument("--norm_pix_loss", action="store_true", help="Use (per-patch) normalized pixels as targets for computing loss")
     parser.set_defaults(norm_pix_loss=False)
 
     # Training related parameters
-    parser.add_argument("--weight_decay", type=float, default=0.05, help="weight decay (default: 0.05)")
-    parser.add_argument("--lr", type=float, default=None, help="learning rate (absolute lr)")
-    parser.add_argument("--path_to_data_dir", default="", help="data path")
-    parser.add_argument("--output_dir", default="./output_dir", help="path where to save, empty for no saving")
-    parser.add_argument("--device", default="cuda", help="device to use for training / testing")
-    parser.add_argument("--resume", default="", help="resume from checkpoint")
+    parser.add_argument("--weight_decay", type=float, default=0.05, help="Weight decay")
+    parser.add_argument("--lr", type=float, default=None, help="Learning rate (absolute lr)")
+    parser.add_argument("--path_to_data_dir", default="", help="Data path")
+    parser.add_argument("--output_dir", default="./output_dir", help="Path where to save, empty for no saving")
+    parser.add_argument("--device", default="cuda", help="Device to use for training / testing")
+    parser.add_argument("--resume", default="", help="Resume from checkpoint")
     parser.add_argument("--clip_grad", type=float, default=None)
-    parser.add_argument("--start_epoch", default=0, type=int, help="start epoch")
+    parser.add_argument("--start_epoch", default=0, type=int, help="Start epoch")
     parser.add_argument("--num_workers", default=10, type=int)
     parser.add_argument("--pin_mem", action="store_true", help="Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.")
     parser.add_argument("--no_pin_mem", action="store_false", dest="pin_mem")
@@ -70,19 +69,19 @@ def get_args_parser():
     parser.add_argument("--no_qkv_bias", action="store_true")
     parser.add_argument("--bias_wd", action="store_true")
     parser.add_argument("--num_checkpoint_del", default=20, type=int)
-    parser.add_argument("--sep_pos_embed", action="store_true")
-    parser.set_defaults(sep_pos_embed=True)
     parser.add_argument("--trunc_init", action="store_true")
-    parser.add_argument("--fp32", action="store_true")
-    parser.set_defaults(fp32=True)
     parser.add_argument("--target_fps", default=30, type=int)
     parser.add_argument("--jitter_scales_relative", default=[0.5, 1.0], type=float, nargs="+")
     parser.add_argument("--jitter_aspect_relative", default=[0.75, 1.3333], type=float, nargs="+")
-    parser.add_argument("--color_jitter", type=bool, default=False, help="color augmentation during training")
+    parser.add_argument("--color_jitter", type=bool, default=False, help="Color augmentation during training")
     parser.add_argument("--beta", default=None, type=float, nargs="+")
     parser.add_argument("--pred_t_dim", type=int, default=16)
     parser.add_argument("--cls_embed", action="store_true")
     parser.set_defaults(cls_embed=True)
+    parser.add_argument("--sep_pos_embed", action="store_true")
+    parser.set_defaults(sep_pos_embed=True)
+    parser.add_argument("--fp32", action="store_true")
+    parser.set_defaults(fp32=True)
 
     return parser
 

@@ -45,7 +45,7 @@ export WORLD_SIZE=1
 # vit-h/14 pretrained
 srun python -u ../main_pretrain.py \
     --path_to_data_dir /scratch/eo41/adept/videos/train \
-    --save_prefix "s+adept_vith14_mask098" \
+    --save_prefix "s+adept_vith14_mask099" \
     --output_dir ../models_maest \
     --model mae_vit_huge_patch14 \
     --resume "../models_maest/s_vith14_224_8_1_16_normpixloss_m09_noamp_Adam0001.pth" \
@@ -64,7 +64,7 @@ srun python -u ../main_pretrain.py \
     --target_fps 25 \
     --lr 0.0001 \
     --weight_decay 0.05 \
-    --mask_ratio 0.98 \
+    --mask_ratio 0.99 \
     --pred_t_dim 8 \
     --clip_grad 0.1 \
     --jitter_scales_relative 0.5 1.0 \

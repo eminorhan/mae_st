@@ -25,6 +25,9 @@ def get_args_parser():
     parser.add_argument("--num_samples", default=1, type=int, help="number of samples to sample from a video clip")
     parser.add_argument("--plot", default=False, type=bool, help="plots images if true")
     parser.add_argument("--device", default="cuda", type=str, help="device to use for testing")
+    parser.add_argument("--pred_t_dim", type=int, default=16)
+    parser.add_argument("--test_jitter_scales", default=[0.5, 1.0], type=float, nargs="+")
+    parser.add_argument("--test_jitter_aspect", default=[0.6667, 1.5], type=float, nargs="+")
 
     return parser
 
@@ -170,14 +173,12 @@ def temporal_sampling(frames, start_idx, end_idx, num_samples):
     Given the start and end frame index, sample num_samples frames between
     the start and end with equal interval.
     Args:
-        frames (tensor): a tensor of video frames, dimension is
-            `num video frames` x `channel` x `height` x `width`.
+        frames (tensor): a tensor of video frames, dimension is `num video frames` x `channel` x `height` x `width`.
         start_idx (int): the index of the start frame.
         end_idx (int): the index of the end frame.
         num_samples (int): number of frames to sample.
     Returns:
-        frames (tersor): a tensor of temporal sampled video frames, dimension is
-            `num clip frames` x `channel` x `height` x `width`.
+        frames (tersor): a tensor of temporal sampled video frames, dimension is `num clip frames` x `channel` x `height` x `width`.
     """
     index = torch.linspace(start_idx, end_idx, num_samples)
     index = torch.clamp(index, 0, frames.shape[0] - 1).long()
@@ -197,8 +198,8 @@ def prepare_video(path):
         crop_size=224,
         random_horizontal_flip=False,
         inverse_uniform_sampling=False,
-        aspect_ratio=[0.6667, 1.5],
-        scale=[0.5, 1.0],
+        aspect_ratio=args.test_jitter_aspect,
+        scale=args.test_jitter_scales,
         motion_shift=False,
     )
     return frames
@@ -223,7 +224,7 @@ if __name__ == '__main__':
 
     # set up and load model
     # TODO: add pred_t_dim as an argument
-    model = models_mae.__dict__[args.model_arch](t_patch_size=2, cls_embed=True, norm_pix_loss=True, sep_pos_embed=True, decoder_depth=4, pred_t_dim=8)
+    model = models_mae.__dict__[args.model_arch](t_patch_size=2, cls_embed=True, norm_pix_loss=True, sep_pos_embed=True, decoder_depth=4, pred_t_dim=args.pred_t_dim)
     model.eval()
 
     checkpoint = torch.load(args.model_path, map_location='cpu')

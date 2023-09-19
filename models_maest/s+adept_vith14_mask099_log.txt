@@ -1,0 +1,2 @@
+{"train_lr": 0.00010000000000000006, "train_cpu_mem": 71.94507168185326, "train_cpu_mem_all": 503.27800369262695, "train_gpu_mem": 45.04590665140459, "train_mask_ratio": 0.9900000000000007, "train_loss": 0.15302798139952845, "epoch": 209}
+{"train_lr": 0.00010000000000000006, "train_cpu_mem": 95.4743972901375, "train_cpu_mem_all": 503.27800369262695, "train_gpu_mem": 45.08567667007446, "train_mask_ratio": 0.9900000000000007, "train_loss": 0.10314927790914813, "epoch": 210}
