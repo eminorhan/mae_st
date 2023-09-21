@@ -133,7 +133,7 @@ def spatial_sampling(
         if random_horizontal_flip:
             frames = transform.horizontal_flip(0.5, frames)
         if color_jitter:
-            frames = transform.color_jitter(frames, img_brightness=0.4, img_contrast=0.4, img_saturation=0.2)    
+            frames = transform.color_jitter(frames, img_brightness=0.8, img_contrast=0.8, img_saturation=0.4)    
     else:
         # The testing is deterministic and no jitter should be performed.
         # min_scale, max_scale, and crop_size are expect to be the same.
