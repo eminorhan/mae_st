@@ -26,6 +26,7 @@ def get_args_parser():
     parser.add_argument("--plot", default=False, type=bool, help="plots images if true")
     parser.add_argument("--device", default="cuda", type=str, help="device to use for testing")
     parser.add_argument("--pred_t_dim", type=int, default=16)
+    parser.add_argument("--sampling_rate", type=int, default=16)
     parser.add_argument("--test_jitter_scales", default=[0.5, 1.0], type=float, nargs="+")
     parser.add_argument("--test_jitter_aspect", default=[0.6667, 1.5], type=float, nargs="+")
 
@@ -187,8 +188,9 @@ def temporal_sampling(frames, start_idx, end_idx, num_samples):
 
 def prepare_video(path):
     video_container = av.open(path)
-    frames, _, _ = pyav_decode(video_container, 8, 16, -1, num_clips_uniform=10, target_fps=25, use_offset=False)
-    frames = temporal_sampling(frames, 0, 120, 16)
+    frames, _, _ = pyav_decode(video_container, args.sampling_rate, 16, -1, num_clips_uniform=10, target_fps=25, use_offset=False)
+    print(frames.shape)
+    frames = temporal_sampling(frames, 0, 250, 16)
     frames = tensor_normalize(frames, torch.tensor(MEAN), torch.tensor(STD)).permute(3, 0, 1, 2)
     frames = spatial_sampling(
         frames,

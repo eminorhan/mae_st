@@ -39,14 +39,15 @@
 # only trained on saycam
 python -u ../evaluate_loss.py \
     --model_arch mae_vit_huge_patch14 \
-    --model_path "../models_maest/s+adept_vith14.pth" \
+    --model_path "../models/adept/s+adept_vith14_${SLURM_ARRAY_TASK_ID}_190ep.pth" \
     --clip_dir "/scratch/eo41/adept/videos/test" \
     --output_dir "../outputs" \
-    --savefile_name "s+adept_samples5_mask07_random" \
+    --savefile_name "s+adept_${SLURM_ARRAY_TASK_ID}_190ep" \
     --mask_ratio 0.7 \
     --mask_type "random" \
     --num_samples 5 \
     --pred_t_dim 8 \
+    --sampling_rate 16 \
     --test_jitter_scales 0.5 1.0 \
     --test_jitter_aspect 0.6667 1.5
 

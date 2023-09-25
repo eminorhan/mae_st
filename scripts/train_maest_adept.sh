@@ -5,10 +5,10 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=240GB
-#SBATCH --time=00:30:00
+#SBATCH --time=00:15:00
 #SBATCH --job-name=train_maest_adept
 #SBATCH --output=train_maest_adept_%A_%a.out
-#SBATCH --array=0-3
+#SBATCH --array=0
 
 export MASTER_ADDR=$(hostname -s)
 export MASTER_PORT=$(shuf -i 10000-65500 -n 1)
@@ -53,7 +53,7 @@ srun python -u ../main_pretrain.py \
     --resume "../models/saycam/s_vith14_224_16_1_16_normpixloss_m09_noamp_Adam0001.pth" \
     --batch_size_per_gpu 16 \
     --accum_iter 1 \
-    --epochs 216 \
+    --epochs 200 \
     --num_frames 16 \
     --input_size 224 \
     --decoder_embed_dim 512 \
@@ -62,7 +62,7 @@ srun python -u ../main_pretrain.py \
     --num_workers 16 \
     --t_patch_size 2 \
     --repeat_aug 1 \
-    --sampling_rate 8 \
+    --sampling_rate 16 \
     --target_fps 25 \
     --lr 0.0001 \
     --weight_decay 0.05 \
