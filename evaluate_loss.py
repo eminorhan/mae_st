@@ -190,7 +190,7 @@ def prepare_video(path):
     video_container = av.open(path)
     frames, _, _ = pyav_decode(video_container, args.sampling_rate, 16, -1, num_clips_uniform=10, target_fps=25, use_offset=False)
     print(frames.shape)
-    frames = temporal_sampling(frames, 0, 250, 16)
+    frames = temporal_sampling(frames, 0, 120, 16)
     frames = tensor_normalize(frames, torch.tensor(MEAN), torch.tensor(STD)).permute(3, 0, 1, 2)
     frames = spatial_sampling(
         frames,

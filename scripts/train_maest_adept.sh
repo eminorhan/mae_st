@@ -44,16 +44,46 @@ export WORLD_SIZE=1
 #     --color_jitter True \
 #     --checkpoint_period 1
 
-# vit-h/14 pretrained
+# # vit-h/14 pretrained on saycam
+# srun python -u ../main_pretrain.py \
+#     --path_to_data_dir /scratch/eo41/adept/videos/train \
+#     --save_prefix "s+adept_vith14_$SLURM_ARRAY_TASK_ID" \
+#     --output_dir ../models/adept \
+#     --model mae_vit_huge_patch14 \
+#     --resume "../models/saycam/s_vith14_224_16_1_16_normpixloss_m09_noamp_Adam0001.pth" \
+#     --batch_size_per_gpu 16 \
+#     --accum_iter 1 \
+#     --epochs 200 \
+#     --num_frames 16 \
+#     --input_size 224 \
+#     --decoder_embed_dim 512 \
+#     --decoder_depth 4 \
+#     --pin_mem \
+#     --num_workers 16 \
+#     --t_patch_size 2 \
+#     --repeat_aug 1 \
+#     --sampling_rate 8 \
+#     --target_fps 25 \
+#     --lr 0.0001 \
+#     --weight_decay 0.05 \
+#     --mask_ratio 0.993 \
+#     --pred_t_dim 8 \
+#     --clip_grad 0.1 \
+#     --jitter_scales_relative 0.5 1.0 \
+#     --jitter_aspect_relative 0.6667 1.5 \
+#     --color_jitter True \
+#     --checkpoint_period 1
+
+# vit-h/14 pretrained on kinetics
 srun python -u ../main_pretrain.py \
     --path_to_data_dir /scratch/eo41/adept/videos/train \
-    --save_prefix "s+adept_vith14_$SLURM_ARRAY_TASK_ID" \
+    --save_prefix "kinetics+adept_vith14_$SLURM_ARRAY_TASK_ID" \
     --output_dir ../models/adept \
     --model mae_vit_huge_patch14 \
-    --resume "../models/saycam/s_vith14_224_16_1_16_normpixloss_m09_noamp_Adam0001.pth" \
+    --resume "../models/kinetics/mae_pretrain_vit_huge_k700.pth" \
     --batch_size_per_gpu 16 \
     --accum_iter 1 \
-    --epochs 200 \
+    --epochs 1000 \
     --num_frames 16 \
     --input_size 224 \
     --decoder_embed_dim 512 \
@@ -62,7 +92,7 @@ srun python -u ../main_pretrain.py \
     --num_workers 16 \
     --t_patch_size 2 \
     --repeat_aug 1 \
-    --sampling_rate 16 \
+    --sampling_rate 8 \
     --target_fps 25 \
     --lr 0.0001 \
     --weight_decay 0.05 \
