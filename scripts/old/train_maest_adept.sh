@@ -80,7 +80,7 @@ srun python -u ../main_pretrain.py \
     --save_prefix "kinetics+adept_vith14_$SLURM_ARRAY_TASK_ID" \
     --output_dir ../models/adept \
     --model mae_vit_huge_patch14 \
-    --resume "../models/kinetics/mae_pretrain_vit_huge_k700.pth" \
+    --resume "../models/kinetics/kinetics_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001_6ep.pth" \
     --batch_size_per_gpu 16 \
     --accum_iter 1 \
     --epochs 1000 \
@@ -97,7 +97,7 @@ srun python -u ../main_pretrain.py \
     --lr 0.0001 \
     --weight_decay 0.05 \
     --mask_ratio 0.993 \
-    --pred_t_dim 8 \
+    --pred_t_dim 16 \
     --clip_grad 0.1 \
     --jitter_scales_relative 0.5 1.0 \
     --jitter_aspect_relative 0.6667 1.5 \

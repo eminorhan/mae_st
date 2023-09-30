@@ -36,19 +36,36 @@
 #     --test_jitter_scales 0.5 1.0 \
 #     --test_jitter_aspect 0.6667 1.5
 
+# # only trained on saycam
+# python -u ../evaluate_loss.py \
+#     --model_arch mae_vit_huge_patch14 \
+#     --model_path "../models/adept/s+adept_vith14_${SLURM_ARRAY_TASK_ID}_193ep.pth" \
+#     --clip_dir "/scratch/eo41/adept/videos/test" \
+#     --output_dir "../outputs" \
+#     --savefile_name "s+adept_${SLURM_ARRAY_TASK_ID}_193ep_temporal" \
+#     --mask_ratio 0.5 \
+#     --mask_type "temporal" \
+#     --num_samples 5 \
+#     --pred_t_dim 8 \
+#     --sampling_rate 8 \
+#     --test_jitter_scales 1.0 1.0 \
+#     --test_jitter_aspect 1.5 1.5 \
+#     --plot True
+
 # only trained on saycam
 python -u ../evaluate_loss.py \
     --model_arch mae_vit_huge_patch14 \
-    --model_path "../models/adept/s+adept_vith14_${SLURM_ARRAY_TASK_ID}_194ep.pth" \
+    --model_path "../models/adept/kinetics+adept_vith14_${SLURM_ARRAY_TASK_ID}_7ep.pth" \
     --clip_dir "/scratch/eo41/adept/videos/test" \
     --output_dir "../outputs" \
-    --savefile_name "s+adept_${SLURM_ARRAY_TASK_ID}_194ep" \
-    --mask_ratio 0.7 \
-    --mask_type "random" \
+    --savefile_name "kinetics+adept_${SLURM_ARRAY_TASK_ID}_7ep" \
+    --mask_ratio 0.25 \
+    --mask_type "temporal" \
     --num_samples 5 \
-    --pred_t_dim 8 \
+    --pred_t_dim 16 \
     --sampling_rate 8 \
-    --test_jitter_scales 0.5 1.0 \
-    --test_jitter_aspect 0.6667 1.5
+    --test_jitter_scales 1.0 1.0 \
+    --test_jitter_aspect 1.5 1.5 \
+    --plot True
 
 echo "Done"

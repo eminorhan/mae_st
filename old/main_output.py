@@ -11,7 +11,6 @@
 
 import argparse
 import datetime
-import json
 import os
 import time
 from pathlib import Path
@@ -22,15 +21,12 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 from iopath.common.file_io import g_pathmgr as pathmgr
-from engine_finetune import evaluate, train_one_epoch
+from engine_finetune import evaluate
 
-from util.decoder.mixup import MixUp as MixVideo
 from util.kinetics import Kinetics
 from util.logging import master_print as print
-from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.pos_embed import interpolate_pos_embed
 
-from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 from timm.models.layers import trunc_normal_
 
 
@@ -237,5 +233,5 @@ if __name__ == '__main__':
     val_files = find_mp4_files(directory=args.val_dir)
     write_csv(video_files=val_files, save_dir=args.val_dir, save_name='val')
 
-    # finetune
+    # run
     main(args)
