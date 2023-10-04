@@ -21,7 +21,7 @@ srun python -u ../main_pretrain.py \
     --output_dir ../models/saycam \
     --model mae_vit_huge_patch14 \
     --resume "" \
-    --batch_size_per_gpu 16 \
+    --batch_size_per_gpu 1 \
     --accum_iter 1 \
     --epochs 100000 \
     --num_frames 16 \
@@ -31,7 +31,7 @@ srun python -u ../main_pretrain.py \
     --pin_mem \
     --num_workers 16 \
     --t_patch_size 2 \
-    --repeat_aug 1 \
+    --repeat_aug 16 \
     --sampling_rate 8 \
     --lr 0.0001 \
     --weight_decay 0.05 \

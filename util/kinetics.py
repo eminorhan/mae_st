@@ -81,12 +81,7 @@ class Kinetics(torch.utils.data.Dataset):
             num_retries (int): number of retries.
         """
         # Only support train, val, and test mode.
-        assert mode in [
-            "pretrain",
-            "finetune",
-            "val",
-            "test",
-        ], "Split '{}' not supported for Kinetics".format(mode)
+        assert mode in ["pretrain", "finetune", "val", "test"], "Split '{}' not supported for Kinetics".format(mode)
         self.mode = mode
         self.aa_type = aa_type
         self.pretrain_rand_flip = pretrain_rand_flip

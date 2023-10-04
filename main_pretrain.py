@@ -42,7 +42,8 @@ def get_args_parser():
     # Training related parameters
     parser.add_argument("--weight_decay", type=float, default=0.05, help="Weight decay")
     parser.add_argument("--lr", type=float, default=None, help="Learning rate (absolute lr)")
-    parser.add_argument("--path_to_data_dir", default="", help="Data path")
+    parser.add_argument("--data_dirs", type=str, default=[""], nargs="+", help="Data paths")
+    parser.add_argument("--datafile_dir", type=str, default="./datafiles", help="Store data files here")
     parser.add_argument("--output_dir", default="./output_dir", help="Path where to save, empty for no saving")
     parser.add_argument("--device", default="cuda", help="Device to use for training / testing")
     parser.add_argument("--resume", default="", help="Resume from checkpoint")
@@ -85,13 +86,14 @@ def get_args_parser():
 
     return parser
 
-def find_mp4_files(directory):
-    """Recursively search for .mp4 files in a directory and its subdirectories"""
+def find_mp4_files(directories):
+    """Recursively search for .mp4 files in directories and their subdirectories"""
     mp4_files = []
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if file.endswith(".mp4"):
-                mp4_files.append((os.path.join(root, file), os.path.basename(root)))
+    for directory in directories:
+        for root, _, files in os.walk(directory):
+            for file in files:
+                if file.endswith(".mp4"):
+                    mp4_files.append((os.path.join(root, file), os.path.basename(root)))
     return mp4_files
 
 def write_csv(video_files, save_dir, save_name):
@@ -110,7 +112,7 @@ def main(args):
     # data pipeline
     dataset_train = Kinetics(
         mode="pretrain",
-        path_to_data_dir=args.path_to_data_dir,
+        path_to_data_dir=args.datafile_dir,
         sampling_rate=args.sampling_rate,
         num_frames=args.num_frames,
         target_fps=args.target_fps,
@@ -187,8 +189,8 @@ if __name__ == '__main__':
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     # prepare data files
-    video_files = find_mp4_files(directory=args.path_to_data_dir)
-    write_csv(video_files=video_files, save_dir=args.path_to_data_dir, save_name='train')
+    video_files = find_mp4_files(directory=args.data_dirs)
+    write_csv(video_files=video_files, save_dir=args.datafile_dirs, save_name='train')
 
     # train
     main(args)

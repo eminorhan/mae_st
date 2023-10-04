@@ -106,7 +106,7 @@ def decode(
         frames (tensor): decoded frames from the video.
     """
     try:
-        assert clip_idx >= -1, "Not valied clip_idx {}".format(clip_idx)
+        assert clip_idx >= -1, "Not valid clip_idx {}".format(clip_idx)
         # Convert the bytes to a tensor.
         buff_arr = np.frombuffer(container, dtype=np.uint8)
         copy_arr = np.copy(buff_arr)
