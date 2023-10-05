@@ -21,7 +21,6 @@ from util.video_vit import Attention, Block, PatchEmbed
 
 class VisionTransformer(nn.Module):
     """Vision Transformer with support for global average pooling"""
-
     def __init__(
         self,
         num_frames,
@@ -29,7 +28,7 @@ class VisionTransformer(nn.Module):
         img_size=224,
         patch_size=16,
         in_chans=3,
-        num_classes=400,
+        num_classes=None,
         embed_dim=768,
         depth=12,
         num_heads=12,
@@ -94,9 +93,10 @@ class VisionTransformer(nn.Module):
         # --------------------------------------------------------------------------
 
         self.dropout = nn.Dropout(dropout)
-        self.head = nn.Linear(embed_dim, num_classes)
+        self.head = nn.Linear(embed_dim, num_classes) if num_classes is not None else nn.Identity()
 
-        torch.nn.init.normal_(self.head.weight, std=0.02)
+        if num_classes is not None:
+            torch.nn.init.normal_(self.head.weight, std=0.02)
 
     @torch.jit.ignore
     def no_weight_decay(self):
@@ -122,13 +122,7 @@ class VisionTransformer(nn.Module):
             x = torch.cat((cls_tokens, x), dim=1)
 
         if self.sep_pos_embed:
-            pos_embed = self.pos_embed_spatial.repeat(
-                1, self.input_size[0], 1
-            ) + torch.repeat_interleave(
-                self.pos_embed_temporal,
-                self.input_size[1] * self.input_size[2],
-                dim=1,
-            )
+            pos_embed = self.pos_embed_spatial.repeat(1, self.input_size[0], 1) + torch.repeat_interleave(self.pos_embed_temporal, self.input_size[1] * self.input_size[2], dim=1)
             if self.cls_embed:
                 pos_embed = torch.cat([self.pos_embed_class.expand(pos_embed.shape[0], -1, -1), pos_embed], 1)
         else:

@@ -28,7 +28,7 @@ class Kinetics(torch.utils.data.Dataset):
     def __init__(
         self,
         mode,
-        path_to_data_dir,
+        datafile_dir,
         # decoding setting
         sampling_rate=4,
         num_frames=16,
@@ -99,7 +99,7 @@ class Kinetics(torch.utils.data.Dataset):
         self._repeat_aug = repeat_aug
         self._video_meta = {}
         self._num_retries = num_retries
-        self._path_to_data_dir = path_to_data_dir
+        self._datafile_dir = datafile_dir
 
         self._train_jitter_scales = train_jitter_scales
         self._train_crop_size = train_crop_size
@@ -154,7 +154,7 @@ class Kinetics(torch.utils.data.Dataset):
             "test": "test",
         }
 
-        path_to_file = os.path.join(self._path_to_data_dir, "{}.csv".format(csv_file_name[self.mode]))
+        path_to_file = os.path.join(self._datafile_dir, "{}.csv".format(csv_file_name[self.mode]))
         assert pathmgr.exists(path_to_file), "{} dir not found".format(path_to_file)
 
         self._path_to_videos = []

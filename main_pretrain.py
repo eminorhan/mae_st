@@ -112,7 +112,7 @@ def main(args):
     # data pipeline
     dataset_train = Kinetics(
         mode="pretrain",
-        path_to_data_dir=args.datafile_dir,
+        datafile_dir=args.datafile_dir,
         sampling_rate=args.sampling_rate,
         num_frames=args.num_frames,
         target_fps=args.target_fps,
@@ -189,8 +189,8 @@ if __name__ == '__main__':
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     # prepare data files
-    video_files = find_mp4_files(directory=args.data_dirs)
-    write_csv(video_files=video_files, save_dir=args.datafile_dirs, save_name='train')
+    video_files = find_mp4_files(directories=args.data_dirs)
+    write_csv(video_files=video_files, save_dir=args.datafile_dir, save_name='train')
 
     # train
     main(args)
