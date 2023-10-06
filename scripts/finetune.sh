@@ -15,7 +15,7 @@ export MASTER_PORT=$(shuf -i 10000-65500 -n 1)
 export WORLD_SIZE=4
 
 # # vit-h/14 sampling rate 4
-# srun python -u ../main_finetune.py \
+# srun python -u ../finetune.py \
 #     --train_dir /scratch/eo41/data-video/kinetics700-50shot \
 #     --val_dir /scratch/eo41/data-video/kinetics700/val \
 #     --num_classes 700 \
@@ -41,7 +41,7 @@ export WORLD_SIZE=4
 #     --mixup_prob 1.0
 
 # # vit-h/14 sampling rate 8
-# srun python -u ../main_finetune.py \
+# srun python -u ../finetune.py \
 #     --train_dir /scratch/eo41/data-video/kinetics700-50shot \
 #     --val_dir /scratch/eo41/data-video/kinetics700/val \
 #     --num_classes 700 \
@@ -67,7 +67,7 @@ export WORLD_SIZE=4
 #     --mixup_prob 1.0
 
 # vit-h/14 sampling rate 16
-srun python -u ../main_finetune.py \
+srun python -u ../finetune.py \
     --train_dir /scratch/eo41/data-video/kinetics700-50shot \
     --val_dir /scratch/eo41/data-video/kinetics700/val \
     --num_classes 700 \

@@ -143,8 +143,9 @@ def embed(data_loader, model, device, fp32=True):
         embeddings.append(output)
         labels.append(target)
 
-        if it % 100 == 0:
-            print('Iter:', it)
+        if it % 99 == 0: print('Iter:', it)
+
+        if it == 299: break
 
     embeddings = torch.cat(embeddings, 0)
     embeddings = embeddings.cpu().numpy()

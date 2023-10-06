@@ -311,9 +311,11 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler):
         else:
             with pathmgr.open(args.resume, "rb") as f:
                 checkpoint = torch.load(f, map_location="cpu")
-        print(list(checkpoint.keys()))
-        model_without_ddp.load_state_dict(checkpoint["model"], strict=False) if "model" in checkpoint else model_without_ddp.load_state_dict(checkpoint["model_state"], strict=False)
-        print("Resume checkpoint %s" % args.resume)
+        if "model" in checkpoint:
+            msg = model_without_ddp.load_state_dict(checkpoint["model"], strict=False)
+        else:
+            msg = model_without_ddp.load_state_dict(checkpoint["model_state"], strict=False)
+        print(f"Resume checkpoint {args.resume} with message {msg}")
         if ("optimizer" in checkpoint and "epoch" in checkpoint and not (hasattr(args, "eval") and args.eval)):
             optimizer.load_state_dict(checkpoint["optimizer"]) if "optimizer" in checkpoint else optimizer.load_state_dict(checkpoint["optimizer_state"])
             args.start_epoch = checkpoint["epoch"] + 1
