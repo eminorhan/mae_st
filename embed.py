@@ -85,22 +85,40 @@ def get_args_parser():
     parser.set_defaults(sep_pos_embed=True)
     parser.add_argument("--fp32", action="store_true")
     parser.set_defaults(fp32=True)
-    parser.add_argument("--jitter_scales_relative", default=[0.9, 1.0], type=float, nargs="+")
-    parser.add_argument("--jitter_aspect_relative", default=[1.0, 1.8], type=float, nargs="+")
+    parser.add_argument("--jitter_scales_relative", default=[1.0, 1.0], type=float, nargs="+")
+    parser.add_argument("--jitter_aspect_relative", default=[1.0, 1.0], type=float, nargs="+")
     parser.add_argument("--cls_embed", action="store_true")
     parser.set_defaults(cls_embed=True)
 
     return parser
 
-def find_mp4_files(directories):
-    """Recursively search for .mp4 files in directories and their subdirectories"""
+def list_subdirectories(directory):
+    subdirectories = []
+    for entry in os.scandir(directory):
+        if entry.is_dir():
+            subdirectories.append(entry.path)
+    subdirectories.sort()  # Sort the list of subdirectories alphabetically
+    return subdirectories
+
+def find_kinetics_files(directory):
+    """Recursively search for .mp4 files in a directory"""
     mp4_files = []
-    for directory in directories:
-        for root, _, files in os.walk(directory):
-            for file in files:
-                if file.endswith(".mp4"):
-                    mp4_files.append((os.path.join(root, file), os.path.basename(root)))
+    subdir_idx = 0
+    subdirectories = list_subdirectories(directory)
+    for subdir in subdirectories:
+        files = os.listdir(subdir)
+        files.sort()
+        for file in files:
+            if file.endswith(".mp4"):
+                mp4_files.append((os.path.join(subdir, file), subdir_idx))
+        subdir_idx += 1
     return mp4_files
+
+def write_kinetics_csv(video_files, save_dir, save_name):
+    """Write the .csv file with video path and subfolder index"""
+    with open(os.path.join(save_dir, f'{save_name}.csv'), 'w', newline='') as csvfile:
+        for video_file, subdir_idx in video_files:
+            csvfile.write(f"{video_file}, {subdir_idx}\n")
 
 def find_webm_files(directories):
     """Recursively search for .mp4 files in directories and their subdirectories"""
@@ -118,13 +136,13 @@ def write_csv(video_files, save_dir, save_name):
         for video_file, _ in video_files:
             csvfile.write(f"{video_file}, {os.path.splitext(os.path.basename(video_file))[0]}\n")
 
+@torch.no_grad()
 def embed(data_loader, model, device, fp32=True):
 
     embeddings = []
     labels = []
-
-    # switch to evaluation mode
     model.eval()
+    print('Training mode?', model.training)
 
     for it, (images, target) in enumerate(data_loader):
 
@@ -138,14 +156,15 @@ def embed(data_loader, model, device, fp32=True):
 
         # compute output
         with torch.cuda.amp.autocast(enabled=not fp32):
-            output = model(images)
+            with torch.no_grad():
+                output = model(images)
 
         embeddings.append(output)
         labels.append(target)
 
         if it % 99 == 0: print('Iter:', it)
 
-        if it == 299: break
+        # if it == 299: break
 
     embeddings = torch.cat(embeddings, 0)
     embeddings = embeddings.cpu().numpy()
@@ -207,8 +226,7 @@ def main(args):
     misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=None, loss_scaler=None)
 
     start_time = time.time()
-    with torch.no_grad():
-        embeddings, labels = embed(data_loader_val, model, device)
+    embeddings, labels = embed(data_loader_val, model, device)
     np.savez(os.path.join(args.output_dir, args.save_prefix + "_embeddings.npz"), embeddings=embeddings, labels=labels)
 
     total_time = time.time() - start_time
@@ -223,8 +241,8 @@ if __name__ == '__main__':
     args.eval = True
 
     # prepare data files
-    val_files = find_webm_files(directories=args.data_dirs)
-    write_csv(video_files=val_files, save_dir=args.datafile_dir, save_name='val')
+    val_files = find_kinetics_files(directory=args.data_dirs[0])
+    write_kinetics_csv(video_files=val_files, save_dir=args.datafile_dir, save_name='val')
 
     # run
     main(args)

@@ -84,6 +84,7 @@ def get_args_parser():
     parser.add_argument("--num_classes", default=700, type=int, help="number of the classes")
     parser.add_argument("--train_dir", default="", help="path to train data")
     parser.add_argument("--val_dir", default="", help="path to val data")
+    parser.add_argument("--datafile_dir", type=str, default="./datafiles", help="Store data files here")
     parser.add_argument("--output_dir", default="./output_dir", help="path where to save, empty for no saving")
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")
     parser.add_argument("--seed", default=0, type=int)
@@ -167,7 +168,7 @@ def main(args):
 
     dataset_train = Kinetics(
         mode="finetune",
-        path_to_data_dir=args.train_dir,
+        datafile_dir=args.datafile_dir,
         sampling_rate=args.sampling_rate,
         num_frames=args.num_frames,
         train_jitter_scales=(256, 320),
@@ -182,8 +183,8 @@ def main(args):
         jitter_scales_relative=args.jitter_scales_relative,
     )
     dataset_val = Kinetics(
-        mode="val",
-        path_to_data_dir=args.val_dir,
+        mode="test",
+        datafile_dir=args.datafile_dir,
         sampling_rate=args.sampling_rate,
         num_frames=args.num_frames,
         train_jitter_scales=(256, 320),
@@ -197,17 +198,21 @@ def main(args):
     print("Sampler_train = %s" % str(sampler_train))
 
     if len(dataset_val) % num_tasks != 0:
-        print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
+        print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. "
+              "This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
     sampler_val = torch.utils.data.DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
 
-    data_loader_train = torch.utils.data.DataLoader(dataset_train, sampler=sampler_train, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=True)
-    data_loader_val = torch.utils.data.DataLoader(dataset_val, sampler=sampler_val, batch_size=23*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
+    data_loader_train = torch.utils.data.DataLoader(dataset_train, sampler=sampler_train, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, 
+                                                    pin_memory=args.pin_mem, drop_last=True)
+    data_loader_val = torch.utils.data.DataLoader(dataset_val, sampler=sampler_val, batch_size=23*args.batch_size_per_gpu, num_workers=args.num_workers, 
+                                                  pin_memory=args.pin_mem, drop_last=False)
 
     mixup_fn = None
     mixup_active = args.mixup > 0 or args.cutmix > 0.0 or args.cutmix_minmax is not None
     if mixup_active:
         print("Mixup is activated!")
-        mixup_fn = MixVideo(mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, mix_prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, label_smoothing=args.smoothing, num_classes=args.num_classes)
+        mixup_fn = MixVideo(mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, mix_prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, 
+                            label_smoothing=args.smoothing, num_classes=args.num_classes)
 
     model = models_vit.__dict__[args.model](**vars(args))
 
@@ -289,11 +294,12 @@ def main(args):
         data_loader_train.sampler.set_epoch(epoch)
         train_stats = train_one_epoch(model, criterion, data_loader_train, optimizer, device, epoch, loss_scaler, args.clip_grad, mixup_fn, args=args, fp32=args.fp32)
     
-        if args.output_dir:
-            checkpoint_path = misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
-
         test_stats = evaluate(data_loader_val, model, device)
         print(f"Accuracy of the model on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
+
+        if args.output_dir and test_stats["acc1"] > max_accuracy:
+            print('Improvement in max test accuracy. Saving model!')
+            checkpoint_path = misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
 
         max_accuracy = max(max_accuracy, test_stats["acc1"])
         print(f"Max accuracy: {max_accuracy:.2f}%")
@@ -317,9 +323,9 @@ if __name__ == '__main__':
 
     # prepare data files
     train_files = find_mp4_files(directory=args.train_dir)
-    write_csv(video_files=train_files, save_dir=args.train_dir, save_name='train')
+    write_csv(video_files=train_files, save_dir=args.datafile_dir, save_name='train')
     val_files = find_mp4_files(directory=args.val_dir)
-    write_csv(video_files=val_files, save_dir=args.val_dir, save_name='val')
+    write_csv(video_files=val_files, save_dir=args.datafile_dir, save_name='test')
 
     # finetune
     main(args)

@@ -16,11 +16,12 @@ export WORLD_SIZE=4
 
 # vit-h/14 s
 srun python -u ../pretrain.py \
-    --path_to_data_dir /scratch/eo41/data-video/minute/S \
-    --save_prefix "s_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001" \
-    --output_dir ../models/saycam \
+    --data_dirs /scratch/eo41/data-video/minute/S \
+    --datafile_dir ../datafiles/s \
+    --save_prefix s_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001 \
+    --output_dir ../models/s \
     --model mae_vit_huge_patch14 \
-    --resume "" \
+    --resume ../models/s/s_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001_102ep.pth \
     --batch_size_per_gpu 1 \
     --accum_iter 1 \
     --epochs 100000 \

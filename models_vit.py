@@ -48,6 +48,7 @@ class VisionTransformer(nn.Module):
         print(locals())
 
         self.sep_pos_embed = sep_pos_embed
+
         # --------------------------------------------------------------------------
         # MAE encoder specifics
         self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim, num_frames, t_patch_size)
@@ -145,8 +146,9 @@ class VisionTransformer(nn.Module):
         if requires_t_shape:
             x = x.view([N, T * L, C])
 
-        # classifier
-        x = x[:, 1:, :].mean(dim=1)  # global pool
+        # classifier (TODO: FIX THIS)
+        x = x[:, 0, :]
+        # x = x[:, 1:, :].mean(dim=1)  # global pool
         x = self.norm(x)
         # x = self.fc_norm(x)
         x = self.dropout(x)

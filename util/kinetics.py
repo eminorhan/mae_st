@@ -39,7 +39,7 @@ class Kinetics(torch.utils.data.Dataset):
         train_random_horizontal_flip=True,
         train_color_jitter=False,
         # test setting, multi crops
-        test_num_ensemble_views=10,
+        test_num_ensemble_views=5,
         test_num_spatial_crops=3,
         test_crop_size=256,
         # norm setting
