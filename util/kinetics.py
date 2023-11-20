@@ -171,7 +171,7 @@ class Kinetics(torch.utils.data.Dataset):
                     self._spatial_temporal_idx.append(idx)
                     self._video_meta[clip_idx * self._num_clips + idx] = {}
 
-        assert (len(self._path_to_videos) > 0), "Failed to load Kinetics split {} from {}".format(self._split_idx, path_to_file)
+        assert (len(self._path_to_videos) > 0), "Failed to load Kinetics split"
         print("Constructing kinetics dataloader (size: {}) from {}".format(len(self._path_to_videos), path_to_file))
 
     def __getitem__(self, index):
@@ -243,11 +243,10 @@ class Kinetics(torch.utils.data.Dataset):
                 target_fps=self._target_fps,
                 max_spatial_scale=min_scale,
                 use_offset=self._use_offset_sampling,
-                rigid_decode_all_video=self.mode in ["pretrain"],
+                rigid_decode_all_video=self.mode in ["pretrain", "finetune", "val"],
             )
 
-            # If decoding failed (wrong format, video is too short, and etc),
-            # select another video.
+            # If decoding failed (wrong format, video is too short, and etc), select another video.
             if frames is None:
                 print("Failed to decode video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try))
                 if self.mode not in ["test"] and i_try > self._num_retries // 2:
@@ -315,6 +314,7 @@ class Kinetics(torch.utils.data.Dataset):
                     )
                     frames_list.append(new_frames)
                     label_list.append(label)
+
             frames = torch.stack(frames_list, dim=0)
 
             if self.mode in ["test"]:

@@ -6,8 +6,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=480GB
 #SBATCH --time=48:00:00
-#SBATCH --job-name=finetune_maest
-#SBATCH --output=finetune_maest_%A_%a.out
+#SBATCH --job-name=finetune_maest_s_kinetics10shot
+#SBATCH --output=finetune_maest_s_kinetics10shot_%A_%a.out
 #SBATCH --array=0
 
 export MASTER_ADDR=$(hostname -s)
@@ -16,7 +16,7 @@ export WORLD_SIZE=4
 
 # vit-h/14 sampling rate 8
 srun python -u ../finetune.py \
-    --train_dir /scratch/eo41/data-video/kinetics700-10shot \
+    --train_dir /scratch/eo41/data-video/kinetics700-10shot/train \
     --val_dir /scratch/eo41/data-video/kinetics700/val \
     --datafile_dir ../datafiles/kinetics-10shot \
     --num_classes 700 \

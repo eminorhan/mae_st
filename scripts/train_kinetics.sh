@@ -16,11 +16,12 @@ export WORLD_SIZE=4
 
 # vit-h/14 kinetics
 srun python -u ../pretrain.py \
-    --path_to_data_dir /scratch/eo41/data-video/kinetics700 \
-    --save_prefix "kinetics_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001" \
+    --data_dirs /scratch/eo41/data-video/kinetics700/train \
+    --datafile_dir ../datafiles/kinetics \
+    --save_prefix kinetics_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001 \
     --output_dir ../models/kinetics \
     --model mae_vit_huge_patch14 \
-    --resume ../models/kinetics/kinetics_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001_22ep.pth \
+    --resume ../models/kinetics/kinetics_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001_11ep.pth \
     --batch_size_per_gpu 16 \
     --accum_iter 1 \
     --epochs 100000 \

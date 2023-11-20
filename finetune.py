@@ -183,7 +183,7 @@ def main(args):
         jitter_scales_relative=args.jitter_scales_relative,
     )
     dataset_val = Kinetics(
-        mode="test",
+        mode="val",
         datafile_dir=args.datafile_dir,
         sampling_rate=args.sampling_rate,
         num_frames=args.num_frames,
@@ -200,10 +200,12 @@ def main(args):
     if len(dataset_val) % num_tasks != 0:
         print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. "
               "This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
+        
     sampler_val = torch.utils.data.DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
 
     data_loader_train = torch.utils.data.DataLoader(dataset_train, sampler=sampler_train, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, 
                                                     pin_memory=args.pin_mem, drop_last=True)
+    
     data_loader_val = torch.utils.data.DataLoader(dataset_val, sampler=sampler_val, batch_size=23*args.batch_size_per_gpu, num_workers=args.num_workers, 
                                                   pin_memory=args.pin_mem, drop_last=False)
 
@@ -277,7 +279,7 @@ def main(args):
 
     print("criterion = %s" % str(criterion))
 
-    misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+    # misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
     if args.eval:
         test_stats = evaluate(data_loader_val, model, device)
@@ -292,8 +294,8 @@ def main(args):
     for epoch in range(args.start_epoch, args.epochs):
 
         data_loader_train.sampler.set_epoch(epoch)
+        
         train_stats = train_one_epoch(model, criterion, data_loader_train, optimizer, device, epoch, loss_scaler, args.clip_grad, mixup_fn, args=args, fp32=args.fp32)
-    
         test_stats = evaluate(data_loader_val, model, device)
         print(f"Accuracy of the model on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
 
@@ -325,7 +327,7 @@ if __name__ == '__main__':
     train_files = find_mp4_files(directory=args.train_dir)
     write_csv(video_files=train_files, save_dir=args.datafile_dir, save_name='train')
     val_files = find_mp4_files(directory=args.val_dir)
-    write_csv(video_files=val_files, save_dir=args.datafile_dir, save_name='test')
+    write_csv(video_files=val_files, save_dir=args.datafile_dir, save_name='val')
 
     # finetune
     main(args)
