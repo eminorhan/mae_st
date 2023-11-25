@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:a100:4
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=480GB
-#SBATCH --time=48:00:00
+#SBATCH --time=16:00:00
 #SBATCH --job-name=train_maest_say
 #SBATCH --output=train_maest_say_%A_%a.out
 #SBATCH --array=0
@@ -21,7 +21,7 @@ srun python -u ../pretrain.py \
     --save_prefix say_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001 \
     --output_dir ../models/say \
     --model mae_vit_huge_patch14 \
-    --resume ../models/say/say_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001_39ep.pth \
+    --resume ../models/say/say_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001_66ep.pth \
     --batch_size_per_gpu 1 \
     --accum_iter 1 \
     --epochs 100000 \

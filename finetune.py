@@ -34,7 +34,6 @@ from util.pos_embed import interpolate_pos_embed
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 from timm.models.layers import trunc_normal_
 
-
 def get_args_parser():
     parser = argparse.ArgumentParser("MAE fine-tuning for image classification", add_help=False)
     parser.add_argument("--batch_size_per_gpu", default=64, type=int, help="Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus")
@@ -316,7 +315,6 @@ def main(args):
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print("Training time {}".format(total_time_str))
     return [checkpoint_path]
-
 
 if __name__ == '__main__':
     args = get_args_parser()
