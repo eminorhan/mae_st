@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:a100:4
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=480GB
-#SBATCH --time=48:00:00
+#SBATCH --time=24:00:00
 #SBATCH --job-name=finetune_maest_s_kinetics10shot
 #SBATCH --output=finetune_maest_s_kinetics10shot_%A_%a.out
 #SBATCH --array=0
