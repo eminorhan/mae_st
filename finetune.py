@@ -52,10 +52,10 @@ def get_args_parser():
     parser.add_argument("--weight_decay", type=float, default=0.05, help="weight decay (default: 0.05)")
     parser.add_argument("--lr", type=float, default=None, metavar="LR", help="learning rate (absolute lr)")
     parser.add_argument("--blr", type=float, default=1e-3, metavar="LR", help="base learning rate: absolute_lr = base_lr * total_batch_size / 256")
-    parser.add_argument("--layer_decay", type=float, default=0.75, help="layer-wise lr decay from ELECTRA/BEiT")
-    parser.add_argument("--min_lr", type=float, default=1e-6, metavar="LR", help="lower lr bound for cyclic schedulers that hit 0")
-    parser.add_argument("--warmup_epochs", type=int, default=5, metavar="N", help="epochs to warmup LR")
-        
+    parser.add_argument("--layer_decay", type=float, default=0.8, help="layer-wise lr decay from ELECTRA/BEiT")
+    parser.add_argument("--min_lr", type=float, default=1e-5, metavar="LR", help="lower lr bound for cyclic schedulers that hit 0")
+    parser.add_argument("--warmup_epochs", type=int, default=0, metavar="N", help="epochs to warmup LR")
+
     # Augmentation parameters
     parser.add_argument("--color_jitter", type=float, default=None, metavar="PCT", help="Color jitter factor (enabled only when not using Auto/RandAug)")
     parser.add_argument("--aa", type=str, default="rand-m7-mstd0.5-inc1", metavar="NAME", help='Use AutoAugment policy. "v0" or "original". " + "(default: rand-m9-mstd0.5-inc1)')
@@ -132,7 +132,7 @@ def list_subdirectories(directory):
     return subdirectories
 
 def find_mp4_files(directory):
-    """Recursively search for .mp4 files in a directory"""
+    """Recursively search for .mp4 or .webm files in a directory"""
     mp4_files = []
     subdir_idx = 0
     subdirectories = list_subdirectories(directory)
@@ -140,7 +140,7 @@ def find_mp4_files(directory):
         files = os.listdir(subdir)
         files.sort()
         for file in files:
-            if file.endswith(".mp4"):
+            if file.endswith((".mp4", ".webm")):
                 mp4_files.append((os.path.join(subdir, file), subdir_idx))
         subdir_idx += 1
     return mp4_files
@@ -277,8 +277,6 @@ def main(args):
         criterion = torch.nn.CrossEntropyLoss()
 
     print("criterion = %s" % str(criterion))
-
-    # misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
     if args.eval:
         test_stats = evaluate(data_loader_val, model, device)

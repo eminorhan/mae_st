@@ -100,8 +100,8 @@ def list_subdirectories(directory):
     subdirectories.sort()  # Sort the list of subdirectories alphabetically
     return subdirectories
 
-def find_kinetics_files(directory):
-    """Recursively search for .mp4 files in a directory"""
+def find_video_files(directory):
+    """Recursively search for .mp4 or .webm files in a directory"""
     mp4_files = []
     subdir_idx = 0
     subdirectories = list_subdirectories(directory)
@@ -109,32 +109,16 @@ def find_kinetics_files(directory):
         files = os.listdir(subdir)
         files.sort()
         for file in files:
-            if file.endswith(".mp4"):
+            if file.endswith((".mp4", ".webm")):
                 mp4_files.append((os.path.join(subdir, file), subdir_idx))
         subdir_idx += 1
     return mp4_files
 
-def write_kinetics_csv(video_files, save_dir, save_name):
+def write_csv(video_files, save_dir, save_name):
     """Write the .csv file with video path and subfolder index"""
     with open(os.path.join(save_dir, f'{save_name}.csv'), 'w', newline='') as csvfile:
         for video_file, subdir_idx in video_files:
             csvfile.write(f"{video_file}, {subdir_idx}\n")
-
-def find_webm_files(directories):
-    """Recursively search for .mp4 files in directories and their subdirectories"""
-    webm_files = []
-    for directory in directories:
-        for root, _, files in os.walk(directory):
-            for file in files:
-                if file.endswith(".webm"):
-                    webm_files.append((os.path.join(root, file), os.path.basename(root)))
-    return webm_files
-
-def write_csv(video_files, save_dir, save_name):
-    """Write the .csv file with video path and subfolder index"""
-    with open(os.path.join(save_dir, f'{save_name}.csv'), 'w', newline='') as csvfile:
-        for video_file, _ in video_files:
-            csvfile.write(f"{video_file}, {os.path.splitext(os.path.basename(video_file))[0]}\n")
 
 @torch.no_grad()
 def embed(data_loader, model, device, fp32=True):
@@ -163,8 +147,6 @@ def embed(data_loader, model, device, fp32=True):
         labels.append(target)
 
         if it % 99 == 0: print('Iter:', it)
-
-        # if it == 299: break
 
     embeddings = torch.cat(embeddings, 0)
     embeddings = embeddings.cpu().numpy()
@@ -204,21 +186,24 @@ def main(args):
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
     if len(dataset_val) % num_tasks != 0:
-        print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
+        print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. "
+              "This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
     
     sampler_val = torch.utils.data.DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
-    data_loader_val = torch.utils.data.DataLoader(dataset_val, sampler=sampler_val, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
+
+    data_loader_val = torch.utils.data.DataLoader(dataset_val, sampler=sampler_val, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, 
+                                                  pin_memory=args.pin_mem, drop_last=False)
 
     model = models_vit.__dict__[args.model](**vars(args))
     model.to(device)
 
     model_without_ddp = model
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print("Model = %s" % str(model_without_ddp))
-    print("Number of params (M): %.2f" % (n_parameters / 1.0e6))
+    print("Model = {}".format(str(model_without_ddp)))
+    print("Number of params (M): {}".format((n_parameters / 1.0e6)))
 
     eff_batch_size = (args.batch_size_per_gpu * misc.get_world_size())
-    print("effective batch size: %d" % eff_batch_size)
+    print("Effective batch size: {}".format(eff_batch_size))
 
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[torch.cuda.current_device()])
     model_without_ddp = model.module
@@ -241,8 +226,8 @@ if __name__ == '__main__':
     args.eval = True
 
     # prepare data files
-    val_files = find_kinetics_files(directory=args.data_dirs[0])
-    write_kinetics_csv(video_files=val_files, save_dir=args.datafile_dir, save_name='val')
+    val_files = find_video_files(directory=args.data_dirs[0])
+    write_csv(video_files=val_files, save_dir=args.datafile_dir, save_name='val')
 
     # run
     main(args)
