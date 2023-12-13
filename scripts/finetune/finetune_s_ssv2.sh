@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:a100:4
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=480GB
-#SBATCH --time=6:00:00
+#SBATCH --time=12:00:00
 #SBATCH --job-name=finetune_maest_s_ssv2
 #SBATCH --output=finetune_maest_s_ssv2_%A_%a.out
 #SBATCH --array=0
@@ -14,18 +14,18 @@ export MASTER_ADDR=$(hostname -s)
 export MASTER_PORT=$(shuf -i 10000-65500 -n 1)
 export WORLD_SIZE=4
 
-SHOT=50
+SHOT=10
 
 # vit-h/14 sampling rate 8
-srun python -u ../finetune.py \
+srun python -u ../../finetune.py \
     --train_dir /vast/eo41/ssv2/train_${SHOT}shot/train \
     --val_dir /vast/eo41/ssv2/val \
-    --datafile_dir ../datafiles/ssv2-${SHOT}shot \
+    --datafile_dir ../../datafiles/ssv2-${SHOT}shot \
     --num_classes 174 \
     --save_prefix "s_250ep_ssv2-${SHOT}shot" \
-    --output_dir ../models_finetuned \
+    --output_dir ../../models_finetuned \
     --model vit_huge_patch14 \
-    --finetune ../models/s/s_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001_250ep.pth \
+    --finetune ../../models/s/s_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001_250ep.pth \
     --batch_size_per_gpu 4 \
     --accum_iter 1 \
     --epochs 100000 \

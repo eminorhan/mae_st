@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:a100:4
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=480GB
-#SBATCH --time=6:00:00
+#SBATCH --time=12:00:00
 #SBATCH --job-name=finetune_maest_kinetics128shot_ssv2
 #SBATCH --output=finetune_maest_kinetics128shot_ssv2_%A_%a.out
 #SBATCH --array=0
@@ -14,7 +14,7 @@ export MASTER_ADDR=$(hostname -s)
 export MASTER_PORT=$(shuf -i 10000-65500 -n 1)
 export WORLD_SIZE=4
 
-SHOT=50
+SHOT=10
 
 # vit-h/14 sampling rate 8
 srun python -u ../../finetune.py \
