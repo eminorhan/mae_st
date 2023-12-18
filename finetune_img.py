@@ -16,14 +16,14 @@ import os
 import time
 from pathlib import Path
 
-import models_vit
+import models_vit_img
 import util.misc as misc
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DistributedSampler, DataLoader
 from iopath.common.file_io import g_pathmgr as pathmgr
-from engine_finetune import evaluate, train_one_epoch
+from engine_finetune_img import evaluate, train_one_epoch
 import util.lr_decay as lrd
 
 from util.decoder.mixup import MixUp as MixVideo
@@ -211,7 +211,7 @@ def main(args):
         print("Mixup is activated!")
         mixup_fn = MixVideo(mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, mix_prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, label_smoothing=args.smoothing, num_classes=args.num_classes)
 
-    model = models_vit.__dict__[args.model](**vars(args))
+    model = models_vit_img.__dict__[args.model](**vars(args))
 
     if misc.get_last_checkpoint(args) is None and args.finetune and not args.eval:
         with pathmgr.open(args.finetune, "rb") as f:

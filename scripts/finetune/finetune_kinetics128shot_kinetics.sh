@@ -14,7 +14,7 @@ export MASTER_ADDR=$(hostname -s)
 export MASTER_PORT=$(shuf -i 10000-65500 -n 1)
 export WORLD_SIZE=4
 
-SHOT=50
+SHOT=10
 
 # vit-h/14 sampling rate 8
 srun python -u ../../finetune.py \
