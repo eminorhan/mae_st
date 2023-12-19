@@ -79,7 +79,7 @@ def get_args_parser():
     # * Finetuning params
     parser.add_argument("--finetune", default="", help="finetune from checkpoint")
     parser.add_argument("--global_pool", action="store_true")
-    parser.set_defaults(global_pool=True)
+    parser.set_defaults(global_pool=False)
     parser.add_argument("--cls_token", action="store_false", dest="global_pool", help="Use class token instead of global pool for classification")
     parser.add_argument("--num_classes", default=700, type=int, help="number of the classes")
     parser.add_argument("--train_dir", default="", help="path to train data")
@@ -211,7 +211,7 @@ def main(args):
         print("Mixup is activated!")
         mixup_fn = MixVideo(mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, mix_prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, label_smoothing=args.smoothing, num_classes=args.num_classes)
 
-    model = models_vit_img.__dict__[args.model](**vars(args))
+    model = models_vit_img.__dict__[args.model](num_classes=args.num_classes, global_pool=args.global_pool)
 
     if misc.get_last_checkpoint(args) is None and args.finetune and not args.eval:
         with pathmgr.open(args.finetune, "rb") as f:

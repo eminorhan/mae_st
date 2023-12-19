@@ -53,7 +53,6 @@ def train_one_epoch(
 
         if len(samples.shape) == 6:
             b, r, c, t, h, w = samples.shape
-            # TODO: CHECK THAT THE FOLLOWING IS CORRECT 
             samples = samples.view(b * r, c, t, h, w).permute(0, 2, 1, 3, 4).reshape(b * r * t, c, h, w)
             targets = targets.view(b * r).repeat_interleave(t)
 
@@ -117,16 +116,16 @@ def evaluate(data_loader, model, device, fp32=True):
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
 
-        if len(samples.shape) == 6:
-            b, r, c, t, h, w = samples.shape
-            # TODO: CHECK THAT THE FOLLOWING IS CORRECT 
-            samples = samples.view(b * r, c, t, h, w).permute(0, 2, 1, 3, 4).reshape(b * r * t, c, h, w)
-            targets = targets.view(b * r).repeat_interleave(t)
+        if len(images.shape) == 6:
+            b, r, c, t, h, w = images.shape
+            images = images.view(b * r, c, t, h, w).permute(0, 2, 1, 3, 4).reshape(b * r * t, c, h, w)
+            target = target.view(b * r)
 
         # compute output
         # TODO: IMPLEMENT MULTIVIEW AVERAGING 
         with torch.cuda.amp.autocast(enabled=not fp32):
             output = model(images)
+            output = output.view(b * r, t, -1).mean(1)
             loss = criterion(output, target)
 
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
