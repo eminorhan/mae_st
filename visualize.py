@@ -1,3 +1,5 @@
+
+import os
 import math
 import random
 import argparse
@@ -14,7 +16,8 @@ STD = (0.225, 0.225, 0.225)
 def get_args_parser():
     parser = argparse.ArgumentParser("Visualize MAEs", add_help=False)
     parser.add_argument("--mask_ratio", default=0.9, type=float, help="Masking ratio (percentage of removed patches)")
-    parser.add_argument("--eval_clip_name", default="demo1", type=str, help="name of eval video clip file")
+    parser.add_argument("--video_dir", default="demo", type=str, help="video directory where the video files are kept")
+    parser.add_argument("--num_vids", default=1, type=int, help="Number of videos to do")
     parser.add_argument("--model_path", default="", type=str, help="path to pretrained model")
     parser.add_argument("--model_arch", default="mae_vit_huge_patch14", type=str, help="Model architecture")
     return parser
@@ -194,6 +197,28 @@ def prepare_video(path):
     )
     return frames
 
+def list_subdirectories(directory):
+    subdirectories = []
+    for entry in os.scandir(directory):
+        if entry.is_dir():
+            subdirectories.append(entry.path)
+    subdirectories.sort()  # Sort the list of subdirectories alphabetically
+    return subdirectories
+
+def find_video_files(directory):
+    """Recursively search for .mp4 or .webm files in a directory"""
+    mp4_files = []
+    subdir_idx = 0
+    subdirectories = list_subdirectories(directory)
+    for subdir in subdirectories:
+        files = os.listdir(subdir)
+        files.sort()
+        for file in files:
+            if file.endswith((".mp4", ".webm")):
+                mp4_files.append(os.path.join(subdir, file))
+        subdir_idx += 1
+    return mp4_files
+
 if __name__ == '__main__':
 
     args = get_args_parser()
@@ -208,19 +233,23 @@ if __name__ == '__main__':
     msg = model.load_state_dict(checkpoint['model'], strict=False)
     print(msg)
 
-    # load and prepate eval video
-    vid = prepare_video(f"demo/{args.eval_clip_name}.webm")
+    video_files = find_video_files(directory=args.video_dir)
+    selected_files = random.sample(video_files, args.num_vids)
+    print('Selected video files:', selected_files)
 
-    with torch.no_grad():
-        _, _, _, vis = model(vid.unsqueeze(0), mask_ratio=args.mask_ratio, visualize=True, mask_type='temporal')
+    for v in selected_files:
+        vid = prepare_video(v)
 
-        vis = vis[0].permute(0, 2, 1, 3, 4)
-        print(vis.shape)
+        with torch.no_grad():
+            _, _, _, vis = model(vid.unsqueeze(0), mask_ratio=args.mask_ratio, visualize=True, mask_type='boundary')
 
-        a = vis[0, :, :, :, :]
-        b = vis[1, :, :, :, :]
-        c = vis[2, :, :, :, :]
+            vis = vis[0].permute(0, 2, 1, 3, 4)
+            print(vis.shape)
 
-        vis = torch.cat((a, b, c), 0)
+            a = vis[0, :, :, :, :]
+            b = vis[1, :, :, :, :]
+            c = vis[2, :, :, :, :]
 
-        save_image(vis, f'{args.eval_clip_name}.jpg', nrow=8, padding=1, normalize=True, scale_each=True)
+            vis = torch.cat((a, b, c), 0)
+
+            save_image(vis, f'{os.path.splitext(os.path.basename(v))[0]}.jpg', nrow=16, padding=1, normalize=True, scale_each=True)

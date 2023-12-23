@@ -17,11 +17,11 @@ export WORLD_SIZE=1
 # s - ssv2
 srun python -u ../embed.py \
     --data_dirs /vast/eo41/ssv2/val \
-    --save_prefix "s_ssv2" \
+    --save_prefix "s_ssv2_50-shot" \
     --output_dir ../embeddings \
     --datafile_dir ../datafiles/ssv2 \
     --model vit_huge_patch14 \
-    --resume ../models_finetuned/s_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001_205ep_ssv2-50shot_10ep.pth \
+    --resume ../models_finetuned/ssv2-50shot/s_250ep_ssv2-50shot_16ep.pth \
     --batch_size_per_gpu 100 \
     --num_frames 16 \
     --input_size 224 \
