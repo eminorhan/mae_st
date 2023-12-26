@@ -31,7 +31,6 @@ def train_one_epoch(model: torch.nn.Module, data_loader: Iterable, optimizer: to
     optimizer.zero_grad()
 
     for data_iter_step, (samples, _) in enumerate(metric_logger.log_every(data_loader, len(data_loader) // num_logs_per_epoch, header)):
-
         samples = samples.to(device, non_blocking=True)
         if len(samples.shape) == 6:
             b, r, c, t, h, w = samples.shape

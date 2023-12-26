@@ -32,21 +32,24 @@ def get_args_parser():
     parser.add_argument("--accum_iter", default=1, type=int, help="Accumulate gradient iterations")
     parser.add_argument("--save_prefix", default="", type=str, help="Prefix for saving checkpoint and log files")
 
+    # Data args
+    parser.add_argument("--data_dirs", type=str, default=[""], nargs="+", help="Data paths")
+    parser.add_argument("--datafile_dir", type=str, default="./datafiles", help="Store data files here")
+    parser.add_argument("--output_dir", default="./output_dir", help="Path where to save, empty for no saving")
+    parser.add_argument("--data_frac", default=1.0, type=float, help="Fraction of data to be used for training")
+
     # Model parameters
     parser.add_argument("--model", default="mae_vit_large_patch16", type=str, help="Name of model to train")
     parser.add_argument("--input_size", default=224, type=int, help="Image size")
     parser.add_argument("--mask_ratio", default=0.9, type=float, help="Masking ratio (percentage of removed patches).")
     parser.add_argument("--norm_pix_loss", action="store_true", help="Use (per-patch) normalized pixels as targets for computing loss")
+    parser.add_argument("--resume", default="", help="Resume from checkpoint")
     parser.set_defaults(norm_pix_loss=False)
 
     # Training related parameters
     parser.add_argument("--weight_decay", type=float, default=0.05, help="Weight decay")
     parser.add_argument("--lr", type=float, default=None, help="Learning rate (absolute lr)")
-    parser.add_argument("--data_dirs", type=str, default=[""], nargs="+", help="Data paths")
-    parser.add_argument("--datafile_dir", type=str, default="./datafiles", help="Store data files here")
-    parser.add_argument("--output_dir", default="./output_dir", help="Path where to save, empty for no saving")
     parser.add_argument("--device", default="cuda", help="Device to use for training / testing")
-    parser.add_argument("--resume", default="", help="Resume from checkpoint")
     parser.add_argument("--clip_grad", type=float, default=None)
     parser.add_argument("--start_epoch", default=0, type=int, help="Start epoch")
     parser.add_argument("--num_workers", default=10, type=int)
@@ -91,8 +94,9 @@ def find_mp4_files(directories):
     mp4_files = []
     for directory in directories:
         for root, _, files in os.walk(directory):
+            files = sorted(files)
             for file in files:
-                if file.endswith(".mp4"):
+                if file.endswith((".mp4", ".MP4", ".mkv", ".webm")):
                     mp4_files.append((os.path.join(root, file), os.path.basename(root)))
     return mp4_files
 
@@ -190,6 +194,14 @@ if __name__ == '__main__':
 
     # prepare data files
     video_files = find_mp4_files(directories=args.data_dirs)
+    
+    if args.data_frac < 1.0:
+        from math import ceil
+        n_vids = len(video_files)
+        n_vids_keep = ceil(n_vids * args.data_frac)
+        video_files = video_files[:n_vids_keep]
+        print(f"Keeping {n_vids_keep} of {n_vids} video files.")
+
     write_csv(video_files=video_files, save_dir=args.datafile_dir, save_name='train')
 
     # train
