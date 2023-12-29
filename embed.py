@@ -186,13 +186,10 @@ def main(args):
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
     if len(dataset_val) % num_tasks != 0:
-        print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. "
-              "This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
+        print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
     
     sampler_val = torch.utils.data.DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
-
-    data_loader_val = torch.utils.data.DataLoader(dataset_val, sampler=sampler_val, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, 
-                                                  pin_memory=args.pin_mem, drop_last=False)
+    data_loader_val = torch.utils.data.DataLoader(dataset_val, sampler=sampler_val, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
 
     model = models_vit.__dict__[args.model](**vars(args))
     model.to(device)

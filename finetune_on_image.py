@@ -21,13 +21,14 @@ import util.misc as misc
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-from torch.utils.data import DistributedSampler, DataLoader
+from torchvision.datasets import ImageFolder
+from torch.utils.data import DataLoader
 from iopath.common.file_io import g_pathmgr as pathmgr
-from engine_finetune import evaluate, train_one_epoch
+from engine_finetune_on_image import evaluate, train_one_epoch
 import util.lr_decay as lrd
 
+from torchvision.transforms import Compose, ToTensor, Normalize, Resize, CenterCrop, RandomResizedCrop, RandomHorizontalFlip
 from util.decoder.mixup import MixUp as MixVideo
-from util.kinetics import Kinetics
 from util.logging import master_print as print
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.pos_embed import interpolate_pos_embed
@@ -58,15 +59,7 @@ def get_args_parser():
     parser.add_argument("--warmup_epochs", type=int, default=0, metavar="N", help="epochs to warmup LR")
 
     # Augmentation parameters
-    parser.add_argument("--color_jitter", type=float, default=None, metavar="PCT", help="Color jitter factor (enabled only when not using Auto/RandAug)")
-    parser.add_argument("--aa", type=str, default="rand-m7-mstd0.5-inc1", metavar="NAME", help='Use AutoAugment policy. "v0" or "original". " + "(default: rand-m9-mstd0.5-inc1)')
-    parser.add_argument("--smoothing", type=float, default=0.1, help="Label smoothing (default: 0.1)")
-
-    # * Random Erase params
-    parser.add_argument("--reprob", type=float, default=0.25, metavar="PCT", help="Random erase prob (default: 0.25)")
-    parser.add_argument("--remode", type=str, default="pixel", help='Random erase mode (default: "pixel")')
-    parser.add_argument("--recount", type=int, default=1, help="Random erase count (default: 1)")
-    parser.add_argument("--resplit", action="store_true", default=False, help="Do not random erase first (clean) augmentation split")
+    parser.add_argument("--smoothing", type=float, default=0.0, help="Label smoothing (default: 0.0)")
 
     # * Mixup params
     parser.add_argument("--mixup", type=float, default=0, help="mixup alpha, mixup enabled if > 0.")
@@ -82,9 +75,8 @@ def get_args_parser():
     parser.set_defaults(global_pool=True)
     parser.add_argument("--cls_token", action="store_false", dest="global_pool", help="Use class token instead of global pool for classification")
     parser.add_argument("--num_classes", default=700, type=int, help="number of the classes")
-    parser.add_argument("--train_dir", default="", help="path to train data")
-    parser.add_argument("--val_dir", default="", help="path to val data")
-    parser.add_argument("--datafile_dir", type=str, default="./datafiles", help="Store data files here")
+    parser.add_argument("--train_data_path", default="", help="path to train data")
+    parser.add_argument("--val_data_path", default="", help="path to val data")
     parser.add_argument("--output_dir", default="./output_dir", help="path where to save, empty for no saving")
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")
     parser.add_argument("--seed", default=0, type=int)
@@ -104,12 +96,9 @@ def get_args_parser():
 
     # Video related configs
     parser.add_argument("--no_env", action="store_true")
-    parser.add_argument("--rand_aug", default=False, action="store_true")
     parser.add_argument("--t_patch_size", default=2, type=int)
     parser.add_argument("--num_frames", default=32, type=int)
     parser.add_argument("--checkpoint_period", default=1, type=int)
-    parser.add_argument("--sampling_rate", default=2, type=int)
-    parser.add_argument("--repeat_aug", default=1, type=int)
     parser.add_argument("--cpu_mix", action="store_true")
     parser.add_argument("--no_qkv_bias", action="store_true")
     parser.add_argument("--bias_wd", action="store_true")
@@ -117,93 +106,59 @@ def get_args_parser():
     parser.set_defaults(sep_pos_embed=True)
     parser.add_argument("--fp32", action="store_true")
     parser.set_defaults(fp32=True)
-    parser.add_argument("--jitter_scales_relative", default=[0.08, 1.0], type=float, nargs="+")
-    parser.add_argument("--jitter_aspect_relative", default=[0.75, 1.3333], type=float, nargs="+")
     parser.add_argument("--cls_embed", action="store_true")
     parser.set_defaults(cls_embed=True)
 
     return parser
 
-def list_subdirectories(directory):
-    subdirectories = []
-    for entry in os.scandir(directory):
-        if entry.is_dir():
-            subdirectories.append(entry.path)
-    subdirectories.sort()  # Sort the list of subdirectories alphabetically
-    return subdirectories
-
-def find_mp4_files(directory):
-    """Recursively search for .mp4 or .webm files in a directory"""
-    mp4_files = []
-    subdir_idx = 0
-    subdirectories = list_subdirectories(directory)
-    for subdir in subdirectories:
-        files = os.listdir(subdir)
-        files.sort()
-        for file in files:
-            if file.endswith((".mp4", ".webm")):
-                mp4_files.append((os.path.join(subdir, file), subdir_idx))
-        subdir_idx += 1
-    return mp4_files
-
-def write_csv(video_files, save_dir, save_name):
-    """Write the .csv file with video path and subfolder index"""
-    with open(os.path.join(save_dir, f'{save_name}.csv'), 'w', newline='') as csvfile:
-        for video_file, subdir_idx in video_files:
-            csvfile.write(f"{video_file}, {subdir_idx}\n")
-
 def main(args):
     misc.init_distributed_mode(args)
     print("job dir: {}".format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(", ", ",\n"))
-
     device = torch.device(args.device)
 
     # fix the seed for reproducibility
     seed = args.seed + misc.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
-
     cudnn.benchmark = True
 
-    dataset_train = Kinetics(
-        mode="finetune",
-        datafile_dir=args.datafile_dir,
-        sampling_rate=args.sampling_rate,
-        num_frames=args.num_frames,
-        train_jitter_scales=(256, 320),
-        repeat_aug=args.repeat_aug,
-        pretrain_rand_erase_prob=args.reprob,
-        pretrain_rand_erase_mode=args.remode,
-        pretrain_rand_erase_count=args.recount,
-        pretrain_rand_erase_split=args.resplit,
-        aa_type=args.aa,
-        rand_aug=args.rand_aug,
-        jitter_aspect_relative=args.jitter_aspect_relative,
-        jitter_scales_relative=args.jitter_scales_relative,
-    )
-    dataset_val = Kinetics(
-        mode="val",
-        datafile_dir=args.datafile_dir,
-        sampling_rate=args.sampling_rate,
-        num_frames=args.num_frames,
-        train_jitter_scales=(256, 320),
-        jitter_aspect_relative=args.jitter_aspect_relative,
-        jitter_scales_relative=args.jitter_scales_relative,
-    )
+    # ============ preparing data ... ============
+    # validation transforms
+    val_transform = Compose([
+        Resize(args.input_size + 32, interpolation=3),
+        CenterCrop(args.input_size),
+        ToTensor(),
+        Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+    ])
 
-    num_tasks = misc.get_world_size()
-    global_rank = misc.get_rank()
-    sampler_train = DistributedSampler(dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True)
-    print("Sampler_train = %s" % str(sampler_train))
+    # training transforms
+    train_transform = Compose([
+        RandomResizedCrop(args.input_size),
+        RandomHorizontalFlip(),
+        ToTensor(),
+        Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+    ])
 
-    if len(dataset_val) % num_tasks != 0:
-        print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number."
-              "This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
-        
-    sampler_val = DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
-    data_loader_train = DataLoader(dataset_train, sampler=sampler_train, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=True)
-    data_loader_val = DataLoader(dataset_val, sampler=sampler_val, batch_size=23*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
+    val_dataset = ImageFolder(args.val_data_path, transform=val_transform)
+    val_loader = DataLoader(val_dataset, batch_size=16*args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)  # note we use a larger batch size for val
+
+    train_dataset = ImageFolder(args.train_data_path, transform=train_transform)
+    # few-shot finetuning
+    if args.frac_retained < 1.0:
+        print('Fraction of train data retained:', args.frac_retained)
+        num_train = len(train_dataset)
+        indices = list(range(num_train))
+        np.random.shuffle(indices)
+        train_idx = indices[:int(args.frac_retained * num_train)]
+        train_sampler = torch.utils.data.sampler.SubsetRandomSampler(train_idx)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True, sampler=train_sampler)
+        print(f"Data loaded with {len(train_idx)} train and {len(val_dataset)} val imgs.")
+    else:
+        print('Using all of train data')
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True, drop_last=True, sampler=None)    
+        print(f"Data loaded with {len(train_dataset)} train and {len(val_dataset)} val imgs.")
+    # ============ done data ... ============
 
     mixup_fn = None
     mixup_active = args.mixup > 0 or args.cutmix > 0.0 or args.cutmix_minmax is not None
@@ -246,7 +201,7 @@ def main(args):
     print("model = %s" % str(model_without_ddp))
     print("number of params (M): %.2f" % (n_parameters / 1.0e6))
 
-    eff_batch_size = (args.batch_size_per_gpu * args.accum_iter * misc.get_world_size() * args.repeat_aug)
+    eff_batch_size = (args.batch_size_per_gpu * args.accum_iter * misc.get_world_size())
 
     if args.lr is None:  # only base_lr is specified
         args.lr = args.blr * eff_batch_size / 256
@@ -275,8 +230,8 @@ def main(args):
     print("criterion = %s" % str(criterion))
 
     if args.eval:
-        test_stats = evaluate(data_loader_val, model, device)
-        print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
+        test_stats = evaluate(val_loader, model, device, args.num_frames)
+        print(f"Accuracy of the network on the {len(val_dataset)} test images: {test_stats['acc1']:.1f}%")
         exit(0)
 
     checkpoint_path = ""
@@ -285,12 +240,10 @@ def main(args):
     max_accuracy = 0.0
 
     for epoch in range(args.start_epoch, args.epochs):
-
-        data_loader_train.sampler.set_epoch(epoch)
         
-        train_stats = train_one_epoch(model, criterion, data_loader_train, optimizer, device, epoch, loss_scaler, args.clip_grad, mixup_fn, args=args, fp32=args.fp32)
-        test_stats = evaluate(data_loader_val, model, device)
-        print(f"Accuracy of the model on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
+        train_stats = train_one_epoch(model, criterion, train_loader, optimizer, device, epoch, args.num_frames, loss_scaler, args.clip_grad, mixup_fn, args=args, fp32=args.fp32)
+        test_stats = evaluate(val_loader, model, device, args.num_frames)
+        print(f"Accuracy of the model on the {len(val_dataset)} test images: {test_stats['acc1']:.1f}%")
 
         if args.output_dir and test_stats["acc1"] > max_accuracy:
             print('Improvement in max test accuracy. Saving model!')
@@ -314,12 +267,6 @@ if __name__ == '__main__':
     args = get_args_parser()
     args = args.parse_args()
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-
-    # prepare data files
-    train_files = find_mp4_files(directory=args.train_dir)
-    write_csv(video_files=train_files, save_dir=args.datafile_dir, save_name='train')
-    val_files = find_mp4_files(directory=args.val_dir)
-    write_csv(video_files=val_files, save_dir=args.datafile_dir, save_name='val')
 
     # finetune
     main(args)
