@@ -22,7 +22,7 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 from torchvision.datasets import ImageFolder
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, DistributedSampler
 from iopath.common.file_io import g_pathmgr as pathmgr
 from engine_finetune_on_image import evaluate, train_one_epoch
 import util.lr_decay as lrd
@@ -69,14 +69,18 @@ def get_args_parser():
     parser.add_argument("--mixup_switch_prob", type=float, default=0.5, help="Probability of switching to cutmix when both mixup and cutmix enabled")
     parser.add_argument("--mixup_mode", type=str, default="batch", help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
 
-    # * Finetuning params
-    parser.add_argument("--finetune", default="", help="finetune from checkpoint")
-    parser.add_argument("--global_pool", action="store_true")
-    parser.set_defaults(global_pool=True)
-    parser.add_argument("--cls_token", action="store_false", dest="global_pool", help="Use class token instead of global pool for classification")
+    # * dataset params
     parser.add_argument("--num_classes", default=700, type=int, help="number of the classes")
     parser.add_argument("--train_data_path", default="", help="path to train data")
     parser.add_argument("--val_data_path", default="", help="path to val data")
+    parser.add_argument("--frac_retained", default=0.010147, type=float, choices=[0.010147, 0.02, 0.03, 0.05, 0.1, 1.0], help="fraction of train data retained for finetuning")
+
+    # * Finetuning params
+    parser.add_argument("--finetune", default="", help="finetune from checkpoint")
+    parser.add_argument("--global_pool", action="store_true")
+    parser.add_argument("--cls_token", action="store_false", dest="global_pool", help="Use class token instead of global pool for classification")
+    parser.set_defaults(global_pool=True)
+
     parser.add_argument("--output_dir", default="./output_dir", help="path where to save, empty for no saving")
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")
     parser.add_argument("--seed", default=0, type=int)
@@ -123,6 +127,9 @@ def main(args):
     np.random.seed(seed)
     cudnn.benchmark = True
 
+    num_tasks = misc.get_world_size()
+    global_rank = misc.get_rank()
+
     # ============ preparing data ... ============
     # validation transforms
     val_transform = Compose([
@@ -141,22 +148,23 @@ def main(args):
     ])
 
     val_dataset = ImageFolder(args.val_data_path, transform=val_transform)
-    val_loader = DataLoader(val_dataset, batch_size=16*args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)  # note we use a larger batch size for val
+    sampler_val = DistributedSampler(val_dataset, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+    val_loader = DataLoader(val_dataset, sampler=sampler_val, batch_size=23*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=True, drop_last=False)  # note we use a larger batch size for val
 
     train_dataset = ImageFolder(args.train_data_path, transform=train_transform)
     # few-shot finetuning
     if args.frac_retained < 1.0:
         print('Fraction of train data retained:', args.frac_retained)
         num_train = len(train_dataset)
-        indices = list(range(num_train))
-        np.random.shuffle(indices)
-        train_idx = indices[:int(args.frac_retained * num_train)]
-        train_sampler = torch.utils.data.sampler.SubsetRandomSampler(train_idx)
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True, sampler=train_sampler)
-        print(f"Data loaded with {len(train_idx)} train and {len(val_dataset)} val imgs.")
+        num_kept = int(args.frac_retained * num_train)
+        train_dataset, _ = torch.utils.data.random_split(train_dataset, (num_kept, num_train-num_kept))
+        sampler_train = DistributedSampler(train_dataset, num_replicas=num_tasks, rank=global_rank, shuffle=True)
+        train_loader = torch.utils.data.DataLoader(train_dataset, sampler=sampler_train, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=True, drop_last=True)
+        print(f"Data loaded with {len(train_dataset)} train and {len(val_dataset)} val imgs.")
     else:
         print('Using all of train data')
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True, drop_last=True, sampler=None)    
+        sampler_train = DistributedSampler(train_dataset, num_replicas=num_tasks, rank=global_rank, shuffle=True)
+        train_loader = torch.utils.data.DataLoader(train_dataset, sampler=sampler_train, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=True, drop_last=True)    
         print(f"Data loaded with {len(train_dataset)} train and {len(val_dataset)} val imgs.")
     # ============ done data ... ============
 
@@ -241,6 +249,8 @@ def main(args):
 
     for epoch in range(args.start_epoch, args.epochs):
         
+        train_loader.sampler.set_epoch(epoch)
+
         train_stats = train_one_epoch(model, criterion, train_loader, optimizer, device, epoch, args.num_frames, loss_scaler, args.clip_grad, mixup_fn, args=args, fp32=args.fp32)
         test_stats = evaluate(val_loader, model, device, args.num_frames)
         print(f"Accuracy of the model on the {len(val_dataset)} test images: {test_stats['acc1']:.1f}%")

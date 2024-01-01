@@ -22,7 +22,7 @@ srun python -u ../pretrain.py \
     --save_prefix s_0.01_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001 \
     --output_dir ../models/s-0.01 \
     --model mae_vit_huge_patch14 \
-    --resume ../models/s-0.01/s_0.01_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001.pth \
+    --resume '' \
     --batch_size_per_gpu 1 \
     --accum_iter 1 \
     --epochs 100000 \

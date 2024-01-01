@@ -18,6 +18,7 @@ export WORLD_SIZE=4
 srun python -u ../../finetune_on_image.py \
     --train_data_path /scratch/work/public/imagenet/train \
     --val_data_path /scratch/eo41/imagenet/val \
+    --frac_retained 0.010147 \
     --num_classes 1000 \
     --save_prefix "s_imagenet" \
     --output_dir ../../models_finetuned_imagenet \
@@ -31,7 +32,6 @@ srun python -u ../../finetune_on_image.py \
     --pin_mem \
     --num_workers 16 \
     --t_patch_size 2 \
-    --repeat_aug 1 \
     --blr 0.0024 \
     --clip_grad 5.0 \
     --mixup 0 \
