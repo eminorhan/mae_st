@@ -115,11 +115,6 @@ def evaluate(data_loader, model, device, num_frames, fp32=True):
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
 
-        if len(images.shape) == 6:
-            b, r, c, t, h, w = images.shape
-            images = images.view(b * r, c, t, h, w)
-            target = target.view(b * r)
-
         # compute output
         with torch.cuda.amp.autocast(enabled=not fp32):
             output = model(images)
