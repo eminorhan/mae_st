@@ -147,10 +147,9 @@ class VisionTransformer(nn.Module):
             x = x.view([N, T * L, C])
 
         # classifier (TODO: FIX THIS)
-        x = x[:, 0, :]
+        x = x[:, 0, :]  # CLS token
         # x = x[:, 1:, :].mean(dim=1)  # global pool
         x = self.norm(x)
-        # x = self.fc_norm(x)
         x = self.dropout(x)
         x = self.head(x)
 

@@ -18,9 +18,9 @@ export WORLD_SIZE=4
 srun python -u ../../finetune_on_image.py \
     --train_data_path /scratch/work/public/imagenet/train \
     --val_data_path /scratch/eo41/imagenet/val \
-    --frac_retained 0.010147 \
+    --frac_retained 0.02 \
     --num_classes 1000 \
-    --save_prefix "s_imagenet" \
+    --save_prefix "s_imagenet_0.02" \
     --output_dir ../../models_finetuned_imagenet \
     --model vit_huge_patch14 \
     --finetune ../../models/s/s_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001_250ep.pth \
