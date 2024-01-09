@@ -12,7 +12,6 @@ logger = get_logger(__name__)
 
 class PatchEmbed(nn.Module):
     """Image to Patch Embedding"""
-
     def __init__(
         self,
         img_size=224,
@@ -29,40 +28,27 @@ class PatchEmbed(nn.Module):
         assert img_size[1] % patch_size[1] == 0
         assert img_size[0] % patch_size[0] == 0
         assert frames % t_patch_size == 0
-        num_patches = (
-            (img_size[1] // patch_size[1])
-            * (img_size[0] // patch_size[0])
-            * (frames // t_patch_size)
-        )
-        self.input_size = (
-            frames // t_patch_size,
-            img_size[0] // patch_size[0],
-            img_size[1] // patch_size[1],
-        )
-        print(
-            f"img_size {img_size} patch_size {patch_size} frames {frames} t_patch_size {t_patch_size}"
-        )
+        num_patches = ((img_size[1] // patch_size[1]) * (img_size[0] // patch_size[0]) * (frames // t_patch_size))
+        self.input_size = (frames // t_patch_size, img_size[0] // patch_size[0], img_size[1] // patch_size[1])
+        
+        print(f"img_size {img_size} patch_size {patch_size} frames {frames} t_patch_size {t_patch_size}")
+        
         self.img_size = img_size
         self.patch_size = patch_size
 
         self.frames = frames
         self.t_patch_size = t_patch_size
-
         self.num_patches = num_patches
 
         self.grid_size = img_size[0] // patch_size[0]
         self.t_grid_size = frames // t_patch_size
 
         kernel_size = [t_patch_size] + list(patch_size)
-        self.proj = nn.Conv3d(
-            in_chans, embed_dim, kernel_size=kernel_size, stride=kernel_size
-        )
+        self.proj = nn.Conv3d(in_chans, embed_dim, kernel_size=kernel_size, stride=kernel_size)
 
     def forward(self, x):
         B, C, T, H, W = x.shape
-        assert (
-            H == self.img_size[0] and W == self.img_size[1]
-        ), f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
+        assert (H == self.img_size[0] and W == self.img_size[1]), f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
         assert T == self.frames
         x = self.proj(x).flatten(3)
         x = torch.einsum("ncts->ntsc", x)  # [N, T, H*W, C]
@@ -102,21 +88,19 @@ class Attention(nn.Module):
         v = (self.v(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3))
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
-
         attn = attn.softmax(dim=-1)
 
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
         x = x.view(B, -1, C)
-        return x
+        return x, attn
 
 
 class Block(nn.Module):
     """
     Transformer Block with specified Attention function
     """
-
     def __init__(
         self,
         dim,
@@ -152,7 +136,10 @@ class Block(nn.Module):
             drop=drop,
         )
 
-    def forward(self, x):
-        x = x + self.drop_path(self.attn(self.norm1(x)))
+    def forward(self, x, return_attention=False):
+        y, attn = self.attn(self.norm1(x))
+        if return_attention:
+            return attn
+        x = x + self.drop_path(y)
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x

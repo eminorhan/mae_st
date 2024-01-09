@@ -155,6 +155,43 @@ class VisionTransformer(nn.Module):
 
         return x
 
+    def get_last_selfattention(self, x):
+        # embed patches
+        x = self.patch_embed(x)
+        N, T, L, C = x.shape  # T: temporal; L: spatial
+
+        x = x.view([N, T * L, C])
+
+        # append cls token
+        if self.cls_embed:
+            cls_token = self.cls_token
+            cls_tokens = cls_token.expand(x.shape[0], -1, -1)
+            x = torch.cat((cls_tokens, x), dim=1)
+
+        if self.sep_pos_embed:
+            pos_embed = self.pos_embed_spatial.repeat(1, self.input_size[0], 1) + torch.repeat_interleave(self.pos_embed_temporal, self.input_size[1] * self.input_size[2], dim=1)
+            if self.cls_embed:
+                pos_embed = torch.cat([self.pos_embed_class.expand(pos_embed.shape[0], -1, -1), pos_embed], 1)
+        else:
+            pos_embed = self.pos_embed[:, :, :]
+        x = x + pos_embed
+
+        # reshape to [N, T, L, C] or [N, T*L, C]
+        requires_t_shape = (
+            len(self.blocks) > 0  # support empty decoder
+            and hasattr(self.blocks[0].attn, "requires_t_shape")
+            and self.blocks[0].attn.requires_t_shape
+        )
+        if requires_t_shape:
+            x = x.view([N, T, L, C])
+
+        for i, blk in enumerate(self.blocks):
+            if i < len(self.blocks) - 1:
+                x = blk(x)
+            else:
+                # return attention of the last block
+                return blk(x, return_attention=True)
+
 
 def vit_base_patch16(**kwargs):
     model = VisionTransformer(patch_size=16, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
