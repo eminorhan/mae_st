@@ -3,12 +3,13 @@ import os
 import math
 import random
 import argparse
+import av
 import torch
 import numpy as np
 from torchvision.utils import save_image
-import models_mae, models_vit
+import models_vit
 from util.decoder.utils import tensor_normalize, spatial_sampling
-import av
+from util.pos_embed import interpolate_pos_embed
 
 MEAN = (0.45, 0.45, 0.45)
 STD = (0.225, 0.225, 0.225)
@@ -245,9 +246,9 @@ def prepare_video(path):
     frames = spatial_sampling(
         frames,
         spatial_idx=1,
-        min_scale=256,
-        max_scale=256,
-        crop_size=224,
+        min_scale=450,
+        max_scale=450,
+        crop_size=448,
         random_horizontal_flip=False,
         inverse_uniform_sampling=False,
         aspect_ratio=None,
@@ -284,12 +285,12 @@ if __name__ == '__main__':
     print(args)
     
     # set up and load model
-    model = models_vit.__dict__[args.model](**vars(args))
-    model.eval()
-
-    checkpoint = torch.load(args.model_path, map_location='cpu')
-    msg = model.load_state_dict(checkpoint['model'], strict=False)
+    model = models_vit.__dict__[args.model](img_size=args.input_size, **vars(args))
+    checkpoint = torch.load(args.model_path, map_location='cpu')['model']
+    interpolate_pos_embed(checkpoint, 16, 32)  # interpolate position embedding
+    msg = model.load_state_dict(checkpoint, strict=False)
     print(msg)
+    model.eval()
 
     video_files = find_video_files(directory=args.video_dir)
     selected_files = random.sample(video_files, args.num_vids)
@@ -303,7 +304,7 @@ if __name__ == '__main__':
             attn = model.get_last_selfattention(vid)
             attn = attn.squeeze(0)
             attn = attn[:, 0, 1:]
-            attn = attn.view([16, 8, 16, 16])
+            attn = attn.view([16, 8, 32, 32])
 
             print('Vid shape:', vid.shape)
             print('Attn shape:', attn.shape)
@@ -318,6 +319,7 @@ if __name__ == '__main__':
 
             vid = vid.squeeze(0).permute(1, 0, 2, 3)
             vid = vid[::2, ...]
+            vid = torch.nn.functional.interpolate(vid, size=(224, 224), mode='nearest-exact')
             print('Vid shape:', vid.shape)
 
             # stack vid and attn

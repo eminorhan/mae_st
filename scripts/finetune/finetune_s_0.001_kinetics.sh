@@ -25,7 +25,7 @@ srun python -u ../../finetune.py \
     --save_prefix "s_0.001_kinetics-${SHOT}shot" \
     --output_dir ../../models_finetuned \
     --model vit_huge_patch14 \
-    --finetune ../../models/s-0.001/s_0.001_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001_250ep.pth \
+    --finetune ../../models/s-0.001/s_0.001_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001.pth \
     --batch_size_per_gpu 4 \
     --accum_iter 1 \
     --epochs 100000 \
