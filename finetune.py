@@ -91,7 +91,7 @@ def get_args_parser():
     parser.add_argument("--resume", default="", help="resume from checkpoint")
     parser.add_argument("--start_epoch", default=0, type=int, metavar="N", help="start epoch")
     parser.add_argument("--eval", action="store_true", help="Perform evaluation only")
-    parser.add_argument("--num_workers", default=10, type=int)
+    parser.add_argument("--num_workers", default=16, type=int)
     parser.add_argument("--pin_mem", action="store_true", help="Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.")
     parser.add_argument("--no_pin_mem", action="store_false", dest="pin_mem")
     parser.set_defaults(pin_mem=True)
@@ -228,8 +228,8 @@ def main(args):
                 print(f"Removing key {k} from pretrained checkpoint")
                 del checkpoint_model[k]
 
-        # interpolate position embedding
-        interpolate_pos_embed(model, checkpoint_model)
+        # # interpolate position embedding
+        # interpolate_pos_embed(model, checkpoint_model)
 
         # load pre-trained model
         msg = model.load_state_dict(checkpoint_model, strict=False)

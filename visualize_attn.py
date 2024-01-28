@@ -7,7 +7,7 @@ import av
 import torch
 import numpy as np
 from torchvision.utils import save_image
-import models_vit
+import models_vit, models_vit_img
 from util.decoder.utils import tensor_normalize, spatial_sampling
 from util.pos_embed import interpolate_pos_embed
 
@@ -19,6 +19,7 @@ def get_args_parser():
     parser.add_argument("--video_dir", default="demo", type=str, help="video directory where the video files are kept")
     parser.add_argument("--num_vids", default=1, type=int, help="Number of videos to do")
     parser.add_argument("--model_path", default="", type=str, help="path to pretrained model")
+    parser.add_argument("--model_path_img", default="", type=str, help="path to pretrained image model")
 
     # Model parameters
     parser.add_argument("--model", default="vit_huge_patch14", type=str, metavar="MODEL", help="Name of model to train")
@@ -246,9 +247,9 @@ def prepare_video(path):
     frames = spatial_sampling(
         frames,
         spatial_idx=1,
-        min_scale=450,
-        max_scale=450,
-        crop_size=448,
+        min_scale=256,
+        max_scale=256,
+        crop_size=224,
         random_horizontal_flip=False,
         inverse_uniform_sampling=False,
         aspect_ratio=None,
@@ -279,18 +280,52 @@ def find_video_files(directory):
         subdir_idx += 1
     return mp4_files
 
+def interpolate_pos_embed_img(model, checkpoint_model):
+    """Interpolate position embeddings for high-resolution."""
+    if 'pos_embed' in checkpoint_model:
+        pos_embed_checkpoint = checkpoint_model['pos_embed']
+        embedding_size = pos_embed_checkpoint.shape[-1]
+        num_patches = model.patch_embed.num_patches
+        num_extra_tokens = model.pos_embed.shape[-2] - num_patches
+        # height (== width) for the checkpoint position embedding
+        orig_size = int((pos_embed_checkpoint.shape[-2] - num_extra_tokens) ** 0.5)
+        # height (== width) for the new position embedding
+        new_size = int(num_patches ** 0.5)
+        # class_token and dist_token are kept unchanged
+        if orig_size != new_size:
+            print("Position interpolate from %dx%d to %dx%d" % (orig_size, orig_size, new_size, new_size))
+            extra_tokens = pos_embed_checkpoint[:, :num_extra_tokens]
+            # only the position tokens are interpolated
+            pos_tokens = pos_embed_checkpoint[:, num_extra_tokens:]
+            pos_tokens = pos_tokens.reshape(-1, orig_size, orig_size, embedding_size).permute(0, 3, 1, 2)
+            pos_tokens = torch.nn.functional.interpolate(
+                pos_tokens, size=(new_size, new_size), mode='bicubic', align_corners=False)
+            pos_tokens = pos_tokens.permute(0, 2, 3, 1).flatten(1, 2)
+            new_pos_embed = torch.cat((extra_tokens, pos_tokens), dim=1)
+            checkpoint_model['pos_embed'] = new_pos_embed
+
 if __name__ == '__main__':
     args = get_args_parser()
     args = args.parse_args()
     print(args)
     
-    # set up and load model
+    # set up and load video model
     model = models_vit.__dict__[args.model](img_size=args.input_size, **vars(args))
     checkpoint = torch.load(args.model_path, map_location='cpu')['model']
-    interpolate_pos_embed(checkpoint, 16, 32)  # interpolate position embedding
+    # interpolate_pos_embed(checkpoint, 16, 32)  # last, interpolate position embedding
     msg = model.load_state_dict(checkpoint, strict=False)
     print(msg)
     model.eval()
+    # model.cuda()
+
+    # set up and load image model
+    model_img = models_vit_img.__dict__["vit_huge_patch14"](img_size=args.input_size, num_classes=0, global_pool=False)
+    checkpoint_img = torch.load(args.model_path_img, map_location='cpu')['model']
+    # interpolate_pos_embed_img(model_img, checkpoint_img)  # interpolate position embedding
+    msg_img = model_img.load_state_dict(checkpoint_img, strict=False)
+    print(msg_img)
+    model_img.eval()
+    # model_img.cuda()
 
     video_files = find_video_files(directory=args.video_dir)
     selected_files = random.sample(video_files, args.num_vids)
@@ -298,24 +333,33 @@ if __name__ == '__main__':
 
     for v in selected_files:
         vid = prepare_video(v)
+        # vid = vid.cuda()
+        img = vid.permute(1, 0, 2, 3)
         vid = vid.unsqueeze(0)
 
         with torch.no_grad():
+
+            # video attention
             attn = model.get_last_selfattention(vid)
             attn = attn.squeeze(0)
             attn = attn[:, 0, 1:]
-            attn = attn.view([16, 8, 32, 32])
-
-            print('Vid shape:', vid.shape)
-            print('Attn shape:', attn.shape)
-            print('Max Attn:', attn.max())
-            print('Min Attn:', attn.min())
-
+            attn = attn.view([16, 8, 16, 16]) # last two
             attn = torch.mean(attn, 0)
             attn = attn.unsqueeze(1)
             attn = attn.repeat(1, 3, 1, 1)
             attn = torch.nn.functional.interpolate(attn, size=(224, 224), mode='nearest-exact')
-            print('Attn shape:', attn.shape)
+            print('Attn Vid shape:', attn.shape)
+
+            # image attention
+            attn_img = model_img.get_last_selfattention(img)
+            attn_img = torch.mean(attn_img, 1)
+            attn_img = attn_img[:, 0, 1:]
+            attn_img = attn_img.view([16, 16, 16]) # last two
+            attn_img = attn_img.unsqueeze(1)
+            attn_img = attn_img.repeat(1, 3, 1, 1)
+            attn_img = torch.nn.functional.interpolate(attn_img, size=(224, 224), mode='nearest-exact')
+            attn_img = attn_img[::2, ...]
+            print('Attn Img shape:', attn_img.shape)
 
             vid = vid.squeeze(0).permute(1, 0, 2, 3)
             vid = vid[::2, ...]
@@ -323,8 +367,8 @@ if __name__ == '__main__':
             print('Vid shape:', vid.shape)
 
             # stack vid and attn
-            vid_attn = torch.cat((vid, attn), 0)
-            print('Vid-Attn shape:', vid_attn.shape)
+            vid_attn = torch.cat((vid, attn, attn_img), 0)
+            print('Vid-AttnVid-AttnImg shape:', vid_attn.shape)
 
             # save original image and attention map
             save_image(vid_attn, f'{os.path.splitext(os.path.basename(v))[0]}_vid_attn.jpg', nrow=8, padding=1, normalize=True, scale_each=True)

@@ -4,8 +4,8 @@
 #SBATCH --ntasks-per-node=4
 #SBATCH --gres=gpu:a100:4
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=490GB
-#SBATCH --time=0:16:00
+#SBATCH --mem=480GB
+#SBATCH --time=168:00:00
 #SBATCH --job-name=train_maest_sayavakepicutego4d
 #SBATCH --output=train_maest_sayavakepicutego4d_%A_%a.out
 #SBATCH --array=0
@@ -26,11 +26,11 @@ srun python -u ../pretrain.py \
     --accum_iter 1 \
     --epochs 100000 \
     --num_frames 16 \
-    --input_size 224 \
+    --img_size 224 \
     --decoder_embed_dim 512 \
     --decoder_depth 4 \
     --pin_mem \
-    --num_workers 1 \
+    --num_workers 16 \
     --t_patch_size 2 \
     --repeat_aug 16 \
     --sampling_rate 8 \

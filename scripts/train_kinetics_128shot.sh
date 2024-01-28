@@ -26,7 +26,7 @@ srun python -u ../pretrain.py \
     --accum_iter 1 \
     --epochs 100000 \
     --num_frames 16 \
-    --input_size 224 \
+    --img_size 224 \
     --decoder_embed_dim 512 \
     --decoder_depth 4 \
     --pin_mem \

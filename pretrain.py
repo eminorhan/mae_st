@@ -40,7 +40,7 @@ def get_args_parser():
 
     # Model parameters
     parser.add_argument("--model", default="mae_vit_large_patch16", type=str, help="Name of model to train")
-    parser.add_argument("--input_size", default=224, type=int, help="Image size")
+    parser.add_argument("--img_size", default=224, type=int, help="Image size")
     parser.add_argument("--mask_ratio", default=0.9, type=float, help="Masking ratio (percentage of removed patches).")
     parser.add_argument("--norm_pix_loss", action="store_true", help="Use (per-patch) normalized pixels as targets for computing loss")
     parser.add_argument("--resume", default="", help="Resume from checkpoint")
@@ -52,7 +52,7 @@ def get_args_parser():
     parser.add_argument("--device", default="cuda", help="Device to use for training / testing")
     parser.add_argument("--clip_grad", type=float, default=None)
     parser.add_argument("--start_epoch", default=0, type=int, help="Start epoch")
-    parser.add_argument("--num_workers", default=10, type=int)
+    parser.add_argument("--num_workers", default=16, type=int)
     parser.add_argument("--pin_mem", action="store_true", help="Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.")
     parser.add_argument("--no_pin_mem", action="store_false", dest="pin_mem")
     parser.set_defaults(pin_mem=True)
@@ -122,6 +122,7 @@ def main(args):
         target_fps=args.target_fps,
         train_color_jitter=args.color_jitter,
         train_jitter_scales=(256, 320),
+        train_crop_size=args.img_size,
         repeat_aug=args.repeat_aug,
         jitter_aspect_relative=args.jitter_aspect_relative,
         jitter_scales_relative=args.jitter_scales_relative,
@@ -130,7 +131,7 @@ def main(args):
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
     sampler_train = torch.utils.data.DistributedSampler(dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True)
-    print("Sampler_train = %s" % str(sampler_train))
+    print(f"Sampler_train = {sampler_train}")
 
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train,
@@ -145,13 +146,12 @@ def main(args):
     model = models_mae.__dict__[args.model](**vars(args))
     model.to(device)
     model_without_ddp = model
-    print("Model = %s" % str(model_without_ddp))
-    print('number of params (M): %.2f' % (sum(p.numel() for p in model_without_ddp.parameters() if p.requires_grad) / 1.e6))
+    print(f"Model: {model_without_ddp}")
+    print(f"Number of params (M): {(sum(p.numel() for p in model_without_ddp.parameters() if p.requires_grad) / 1.e6)}")
 
     # effective batch size
     eff_batch_size = args.batch_size_per_gpu * args.accum_iter * misc.get_world_size()
-    print("accumulate grad iterations: %d" % args.accum_iter)
-    print("effective batch size: %d" % eff_batch_size)
+    print(f"Effective batch size: {eff_batch_size} = {args.batch_size_per_gpu} batch_size_per_gpu * {args.accum_iter} accum_iter * {misc.get_world_size()} GPUs")
 
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[torch.cuda.current_device()])
     model_without_ddp = model.module
@@ -183,7 +183,7 @@ def main(args):
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print("Training time {}".format(total_time_str))
+    print(f"Training time {total_time_str}")
     print(torch.cuda.memory_allocated())
     return [checkpoint_path]
 
@@ -200,7 +200,10 @@ if __name__ == '__main__':
         n_vids = len(video_files)
         n_vids_keep = ceil(n_vids * args.data_frac)
         video_files = video_files[:n_vids_keep]
-        print(f"Keeping {n_vids_keep} of {n_vids} video files.")
+        print(f"Training on {n_vids_keep} of {n_vids} video files.")
+    else:
+        n_vids = len(video_files)
+        print(f"Training on all {n_vids} video files.")
 
     write_csv(video_files=video_files, save_dir=args.datafile_dir, save_name='train')
 
