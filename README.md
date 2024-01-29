@@ -56,4 +56,28 @@ python -u finetune.py \
     --mixup 0 \
     --cutmix 0.0
 ```
-Here, `TRAIN_DIR` and `VAL_DIR` are the directories containing the training and validation videos, respectively, and `SPATIOTEMPORAL_MAE_CHECKPOINT` is the path to the spatiotemporal MAE checkpoint the model is initialized with (use `""` here if you would like to finetune the model from scratch without any pretraining).
+Here, `TRAIN_DIR` and `VAL_DIR` are the directories containing the training and validation videos, respectively, and `SPATIOTEMPORAL_MAE_CHECKPOINT` is the path to the pretrained spatiotemporal MAE checkpoint the model is initialized with (use `""` here if you would like to finetune the model from scratch without any pretraining).
+
+* **Finetuning on images:** To finetune a ViT-H/14 model on a downstream image recognition task (*e.g.* ImageNet), use [`finetune_on_image.py`](https://github.com/eminorhan/mae_st/blob/master/finetune_on_image.py), *e.g.*:
+```python
+python -u finetune_on_image.py \
+    --train_data_path TRAIN_DATA_PATH \
+    --val_data_path VAL_TRAIN_DATA_PATH \
+    --save_prefix INFORMATIVE_SAVE_PREFIX \
+    --output_dir OUTPUT_DIR \
+    --finetune SPATIOTEMPORAL_MAE_CHECKPOINT \
+    --num_classes 1000 \
+    --model 'vit_huge_patch14' \
+    --batch_size_per_gpu 4 \
+    --accum_iter 1 \
+    --epochs 100000 \
+    --num_frames 16 \
+    --input_size 224 \
+    --pin_mem \
+    --t_patch_size 2 \
+    --blr 0.0024 \
+    --clip_grad 5.0 \
+    --mixup 0 \
+    --cutmix 0.0
+```
+Here, `TRAIN_DATA_PATH` and `VAL_TRAIN_DATA_PATH` are the directories containing the training and validation images, respectively, and `SPATIOTEMPORAL_MAE_CHECKPOINT` is the path to the pretrained spatiotemporal MAE checkpoint the model is initialized with. This script will effectively make a static video clip for each image by repeating the image 16 times (`num_frames`). This allows us to use the pretrained spatiotemporal MAE model as is without any modifications in the architecture. 
