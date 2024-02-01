@@ -23,8 +23,8 @@ class VisionTransformer(nn.Module):
     """Vision Transformer with support for global average pooling"""
     def __init__(
         self,
-        num_frames,
-        t_patch_size,
+        num_frames=16,
+        t_patch_size=2,
         img_size=224,
         patch_size=16,
         in_chans=3,
@@ -37,11 +37,11 @@ class VisionTransformer(nn.Module):
         qk_scale=None,
         drop_rate=0.0,
         attn_drop_rate=0.0,
-        drop_path_rate=0.0,
+        drop_path_rate=0.1,
         norm_layer=nn.LayerNorm,
-        dropout=0.5,
-        sep_pos_embed=False,
-        cls_embed=False,
+        dropout=0.3,
+        sep_pos_embed=True,
+        cls_embed=True,
         **kwargs,
     ):
         super().__init__()

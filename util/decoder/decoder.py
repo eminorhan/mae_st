@@ -184,7 +184,7 @@ def decode(
             )
     except Exception as e:
         print("Failed to decode by torchvision with exception: {}".format(e))
-        return None
+        return None, None, None
 
     # Return None if the frames was not decoded successfully.
     if v_frames is None or v_frames.size(0) == 0:

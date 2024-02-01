@@ -30,7 +30,7 @@ srun python -u ../pretrain.py \
     --decoder_embed_dim 512 \
     --decoder_depth 4 \
     --pin_mem \
-    --num_workers 16 \
+    --num_workers 4 \
     --t_patch_size 2 \
     --repeat_aug 16 \
     --sampling_rate 8 \

@@ -24,7 +24,7 @@ def get_args_parser():
     # Model parameters
     parser.add_argument("--model", default="vit_huge_patch14", type=str, metavar="MODEL", help="Name of model to train")
     parser.add_argument("--input_size", default=224, type=int, help="images input size")
-    parser.add_argument("--dropout", type=float, default=0.5)
+    parser.add_argument("--dropout", type=float, default=0.3)
     parser.add_argument("--drop_path_rate", type=float, default=0.1, metavar="PCT", help="Drop path rate (default: 0.1)")
 
     # Augmentation parameters
