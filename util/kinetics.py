@@ -6,6 +6,8 @@ import random
 
 import torch
 import torch.utils.data
+import numpy as np
+import pickle
 
 from iopath.common.file_io import g_pathmgr as pathmgr
 from util.decoder.decoder import get_start_end_idx, temporal_sampling
@@ -14,6 +16,47 @@ from torchvision import transforms
 from .decoder import decoder as decoder, utils as utils, video_container as container
 from .decoder.random_erasing import RandomErasing
 from .decoder.transform import create_random_augment
+
+
+class NumpySerializedList():
+    def __init__(self, lst: list):
+        def _serialize(data):
+            buffer = pickle.dumps(data, protocol=-1)
+            return np.frombuffer(buffer, dtype=np.uint8)
+
+        print(
+            "Serializing {} elements to byte tensors and concatenating them all ...".format(
+                len(lst)
+            )
+        )
+        self._lst = [_serialize(x) for x in lst]
+        self._addr = np.asarray([len(x) for x in self._lst], dtype=np.int64)
+        self._addr = np.cumsum(self._addr)
+        self._lst = np.concatenate(self._lst)
+        print("Serialized dataset takes {:.2f} MiB".format(len(self._lst) / 1024**2))
+
+    def __len__(self):
+        return len(self._addr)
+
+    def __getitem__(self, idx):
+        start_addr = 0 if idx == 0 else self._addr[idx - 1].item()
+        end_addr = self._addr[idx].item()
+        bytes = memoryview(self._lst[start_addr:end_addr])
+        return pickle.loads(bytes)
+
+
+class TorchSerializedList(NumpySerializedList):
+    def __init__(self, lst: list):
+        super().__init__(lst)
+        self._addr = torch.from_numpy(self._addr)
+        self._lst = torch.from_numpy(self._lst)
+
+    def __getitem__(self, idx):
+        start_addr = 0 if idx == 0 else self._addr[idx - 1].item()
+        end_addr = self._addr[idx].item()
+        bytes = memoryview(self._lst[start_addr:end_addr].numpy())
+        return pickle.loads(bytes)
+
 
 class Kinetics(torch.utils.data.Dataset):
     """
@@ -170,6 +213,10 @@ class Kinetics(torch.utils.data.Dataset):
                     self._labels.append(int(label))
                     self._spatial_temporal_idx.append(idx)
                     self._video_meta[clip_idx * self._num_clips + idx] = {}
+
+        self._labels = TorchSerializedList(self._labels)
+        self._spatial_temporal_idx = TorchSerializedList(self._spatial_temporal_idx)
+        self._path_to_videos = TorchSerializedList(self._path_to_videos)
 
         assert (len(self._path_to_videos) > 0), "Failed to load Kinetics split"
         print("Constructing kinetics dataloader (size: {}) from {}".format(len(self._path_to_videos), path_to_file))
