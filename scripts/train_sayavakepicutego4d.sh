@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:a100:4
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=480GB
-#SBATCH --time=03:00:00
+#SBATCH --time=168:00:00
 #SBATCH --job-name=train_maest_sayavakepicutego4d
 #SBATCH --output=train_maest_sayavakepicutego4d_%A_%a.out
 #SBATCH --array=0
