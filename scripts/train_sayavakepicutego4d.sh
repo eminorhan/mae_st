@@ -1,22 +1,22 @@
 #!/bin/bash
 
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=4
-#SBATCH --gres=gpu:a100:4
+#SBATCH --ntasks-per-node=1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=480GB
-#SBATCH --time=168:00:00
+#SBATCH --mem=240GB
+#SBATCH --time=1:00:00
 #SBATCH --job-name=train_maest_sayavakepicutego4d
 #SBATCH --output=train_maest_sayavakepicutego4d_%A_%a.out
 #SBATCH --array=0
 
 export MASTER_ADDR=$(hostname -s)
 export MASTER_PORT=$(shuf -i 10000-65500 -n 1)
-export WORLD_SIZE=4
+export WORLD_SIZE=1
 
 # vit-h/14 sayavakepicutego4d
 srun python -u ../pretrain.py \
-    --data_dirs /scratch/projects/lakelab/data_videos \
+    --data_dirs /scratch/projects/lakelab/data_videos/ego4d \
     --datafile_dir ../datafiles/sayavakepicutego4d \
     --save_prefix sayavakepicutego4d_vith14_224_8_1_16_pixloss_m09_accum1_Adam0001 \
     --output_dir ../models/sayavakepicutego4d \

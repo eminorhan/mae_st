@@ -24,11 +24,7 @@ class NumpySerializedList():
             buffer = pickle.dumps(data, protocol=-1)
             return np.frombuffer(buffer, dtype=np.uint8)
 
-        print(
-            "Serializing {} elements to byte tensors and concatenating them all ...".format(
-                len(lst)
-            )
-        )
+        print("Serializing {} elements to byte tensors and concatenating them all ...".format(len(lst)))
         self._lst = [_serialize(x) for x in lst]
         self._addr = np.asarray([len(x) for x in self._lst], dtype=np.int64)
         self._addr = np.cumsum(self._addr)
@@ -290,7 +286,7 @@ class Kinetics(torch.utils.data.Dataset):
                 target_fps=self._target_fps,
                 max_spatial_scale=min_scale,
                 use_offset=self._use_offset_sampling,
-                rigid_decode_all_video=self.mode in ["pretrain", "finetune", "val"],
+                rigid_decode_all_video=self.mode in ["finetune", "val"],  # NOTE: removed "pretrained" from here to enable selective decoding for pretraining videos
             )
 
             # If decoding failed (wrong format, video is too short, and etc), select another video.
