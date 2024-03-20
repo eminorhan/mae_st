@@ -77,6 +77,7 @@ def get_args_parser():
     parser.add_argument("--target_fps", default=30, type=int)
     parser.add_argument("--jitter_scales_relative", default=[0.5, 1.0], type=float, nargs="+")
     parser.add_argument("--jitter_aspect_relative", default=[0.75, 1.3333], type=float, nargs="+")
+    parser.add_argument("--train_jitter_scales", default=[256, 320], type=int, nargs="+")
     parser.add_argument("--color_jitter", type=bool, default=False, help="Color augmentation during training")
     parser.add_argument("--beta", default=None, type=float, nargs="+")
     parser.add_argument("--pred_t_dim", type=int, default=16)
@@ -85,7 +86,7 @@ def get_args_parser():
     parser.add_argument("--sep_pos_embed", action="store_true")
     parser.set_defaults(sep_pos_embed=True)
     parser.add_argument("--fp32", action="store_true")
-    parser.set_defaults(fp32=True)
+    parser.set_defaults(fp32=False)
 
     return parser
 
@@ -121,7 +122,7 @@ def main(args):
         num_frames=args.num_frames,
         target_fps=args.target_fps,
         train_color_jitter=args.color_jitter,
-        train_jitter_scales=(256, 320),
+        train_jitter_scales=tuple(args.train_jitter_scales),
         train_crop_size=args.img_size,
         repeat_aug=args.repeat_aug,
         jitter_aspect_relative=args.jitter_aspect_relative,

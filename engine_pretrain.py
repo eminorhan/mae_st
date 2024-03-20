@@ -33,8 +33,6 @@ def train_one_epoch(model: torch.nn.Module, data_loader: Iterable, optimizer: to
 
     for data_iter_step, (samples, _) in enumerate(metric_logger.log_every(data_loader, len(data_loader) // num_logs_per_epoch, header)):
         
-        print('data_iter_step:', data_iter_step)
-
         samples = samples.to(device, non_blocking=True)
         if len(samples.shape) == 6:
             b, r, c, t, h, w = samples.shape
@@ -71,9 +69,6 @@ def train_one_epoch(model: torch.nn.Module, data_loader: Iterable, optimizer: to
 
         lr = optimizer.param_groups[0]["lr"]
         metric_logger.update(lr=lr)
-
-        # if (data_iter_step % 16 == 0) and (data_iter_step != 0):
-        #     break
     
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()

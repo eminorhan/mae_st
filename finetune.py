@@ -116,7 +116,7 @@ def get_args_parser():
     parser.add_argument("--sep_pos_embed", action="store_true")
     parser.set_defaults(sep_pos_embed=True)
     parser.add_argument("--fp32", action="store_true")
-    parser.set_defaults(fp32=True)
+    parser.set_defaults(fp32=False)
     parser.add_argument("--jitter_scales_relative", default=[0.08, 1.0], type=float, nargs="+")
     parser.add_argument("--jitter_aspect_relative", default=[0.75, 1.3333], type=float, nargs="+")
     parser.add_argument("--cls_embed", action="store_true")
@@ -203,7 +203,7 @@ def main(args):
         
     sampler_val = DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
     data_loader_train = DataLoader(dataset_train, sampler=sampler_train, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=True)
-    data_loader_val = DataLoader(dataset_val, sampler=sampler_val, batch_size=23*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
+    data_loader_val = DataLoader(dataset_val, sampler=sampler_val, batch_size=16*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
 
     mixup_fn = None
     mixup_active = args.mixup > 0 or args.cutmix > 0.0 or args.cutmix_minmax is not None
@@ -275,7 +275,7 @@ def main(args):
     print("criterion = %s" % str(criterion))
 
     if args.eval:
-        test_stats = evaluate(data_loader_val, model, device)
+        test_stats = evaluate(data_loader_val, model, device, fp32=args.fp32)
         print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
         exit(0)
 
@@ -289,14 +289,14 @@ def main(args):
         data_loader_train.sampler.set_epoch(epoch)
         
         train_stats = train_one_epoch(model, criterion, data_loader_train, optimizer, device, epoch, loss_scaler, args.clip_grad, mixup_fn, args=args, fp32=args.fp32)
-        test_stats = evaluate(data_loader_val, model, device)
+        test_stats = evaluate(data_loader_val, model, device, fp32=args.fp32)
         print(f"Accuracy of the model on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
 
-        if args.output_dir and test_stats["acc1"] > max_accuracy:
+        if args.output_dir and test_stats["acc5"] > max_accuracy:
             print('Improvement in max test accuracy. Saving model!')
             checkpoint_path = misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
 
-        max_accuracy = max(max_accuracy, test_stats["acc1"])
+        max_accuracy = max(max_accuracy, test_stats["acc5"])
         print(f"Max accuracy: {max_accuracy:.2f}%")
 
         log_stats = {**{f"train_{k}": v for k, v in train_stats.items()}, **{f"test_{k}": v for k, v in test_stats.items()}, "epoch": epoch, "n_parameters": n_parameters}
