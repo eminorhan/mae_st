@@ -44,7 +44,7 @@ def get_args_parser():
 
     # Model parameters
     parser.add_argument("--model", default="vit_large_patch16", type=str, metavar="MODEL", help="Name of model to train")
-    parser.add_argument("--input_size", default=224, type=int, help="images input size")
+    parser.add_argument("--img_size", default=224, type=int, help="images input size")
     parser.add_argument("--dropout", type=float, default=0.3)
     parser.add_argument("--drop_path_rate", type=float, default=0.1, metavar="PCT", help="Drop path rate")
 
@@ -119,6 +119,7 @@ def get_args_parser():
     parser.set_defaults(fp32=False)
     parser.add_argument("--jitter_scales_relative", default=[0.08, 1.0], type=float, nargs="+")
     parser.add_argument("--jitter_aspect_relative", default=[0.75, 1.3333], type=float, nargs="+")
+    parser.add_argument("--train_jitter_scales", default=[256, 320], type=int, nargs="+")
     parser.add_argument("--cls_embed", action="store_true")
     parser.set_defaults(cls_embed=True)
 
@@ -171,7 +172,8 @@ def main(args):
         datafile_dir=args.datafile_dir,
         sampling_rate=args.sampling_rate,
         num_frames=args.num_frames,
-        train_jitter_scales=(256, 320),
+        train_jitter_scales=tuple(args.train_jitter_scales),
+        train_crop_size=args.img_size,
         repeat_aug=args.repeat_aug,
         pretrain_rand_erase_prob=args.reprob,
         pretrain_rand_erase_mode=args.remode,
@@ -187,7 +189,8 @@ def main(args):
         datafile_dir=args.datafile_dir,
         sampling_rate=args.sampling_rate,
         num_frames=args.num_frames,
-        train_jitter_scales=(256, 320),
+        train_jitter_scales=tuple(args.train_jitter_scales),
+        train_crop_size=args.img_size,
         jitter_aspect_relative=args.jitter_aspect_relative,
         jitter_scales_relative=args.jitter_scales_relative,
     )
@@ -195,7 +198,7 @@ def main(args):
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
     sampler_train = DistributedSampler(dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True)
-    print("Sampler_train = %s" % str(sampler_train))
+    print(f"Sampler_train = {sampler_train}")
 
     if len(dataset_val) % num_tasks != 0:
         print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number."
@@ -241,21 +244,19 @@ def main(args):
     model.to(device)
 
     model_without_ddp = model
-    n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Model: {model_without_ddp}")
+    print(f"Number of params (M): {(sum(p.numel() for p in model_without_ddp.parameters() if p.requires_grad) / 1.e6)}")
 
-    print("model = %s" % str(model_without_ddp))
-    print("number of params (M): %.2f" % (n_parameters / 1.0e6))
-
+    # effective batch size
     eff_batch_size = (args.batch_size_per_gpu * args.accum_iter * misc.get_world_size() * args.repeat_aug)
+    print(f"Effective batch size: {eff_batch_size} = {args.batch_size_per_gpu} batch_size_per_gpu * {args.accum_iter} accum_iter * {misc.get_world_size()} GPUs * {args.repeat_aug} repeat_augs")
 
+    # effective lr
     if args.lr is None:  # only base_lr is specified
         args.lr = args.blr * eff_batch_size / 256
+    print(f"Effective lr: {args.lr}")
 
-    print("base lr: %.2e" % (args.lr * 256 / eff_batch_size))
-    print("actual lr: %.2e" % args.lr)
-    print("accumulate grad iterations: %d" % args.accum_iter)
-    print("effective batch size: %d" % eff_batch_size)
-
+    # wrap model in ddp
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[torch.cuda.current_device()])
     model_without_ddp = model.module
 
@@ -264,6 +265,7 @@ def main(args):
     optimizer = torch.optim.AdamW(param_groups, lr=args.lr)
     loss_scaler = NativeScaler(fp32=args.fp32)
 
+    # build criterion
     if mixup_fn is not None:
         # smoothing is handled with mixup label transform
         criterion = SoftTargetCrossEntropy()
@@ -271,8 +273,7 @@ def main(args):
         criterion = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
     else:
         criterion = torch.nn.CrossEntropyLoss()
-
-    print("criterion = %s" % str(criterion))
+    print(f"Criterion = {criterion}")
 
     if args.eval:
         test_stats = evaluate(data_loader_val, model, device, fp32=args.fp32)
@@ -293,13 +294,13 @@ def main(args):
         print(f"Accuracy of the model on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
 
         if args.output_dir and test_stats["acc5"] > max_accuracy:
-            print('Improvement in max test accuracy. Saving model!')
+            print("Improvement in max test accuracy. Saving model!")
             checkpoint_path = misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
 
         max_accuracy = max(max_accuracy, test_stats["acc5"])
         print(f"Max accuracy: {max_accuracy:.2f}%")
 
-        log_stats = {**{f"train_{k}": v for k, v in train_stats.items()}, **{f"test_{k}": v for k, v in test_stats.items()}, "epoch": epoch, "n_parameters": n_parameters}
+        log_stats = {**{f"train_{k}": v for k, v in train_stats.items()}, **{f"test_{k}": v for k, v in test_stats.items()}, "epoch": epoch}
 
         if args.output_dir and misc.is_main_process():
             with pathmgr.open(f"{args.output_dir}/{args.save_prefix}_log.txt", "a") as f:

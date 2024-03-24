@@ -29,3 +29,4 @@
 {"train_lr": 9.99999999999915e-05, "train_cpu_mem": 394.2850689829511, "train_cpu_mem_all": 503.27800369262695, "train_gpu_mem": 63.706074966239406, "train_mask_ratio": 0.8999999999999349, "train_loss": 0.10307618326069692, "epoch": 28}
 {"train_lr": 9.99999999999915e-05, "train_cpu_mem": 393.5468681591926, "train_cpu_mem_all": 503.27800369262695, "train_gpu_mem": 63.70607614517212, "train_mask_ratio": 0.8999999999999349, "train_loss": 0.1020799265584041, "epoch": 29}
 {"train_lr": 9.99999999999915e-05, "train_cpu_mem": 387.6950082316862, "train_cpu_mem_all": 503.27800369262695, "train_gpu_mem": 63.70607614517212, "train_mask_ratio": 0.8999999999999349, "train_loss": 0.10153065650587217, "epoch": 30}
+{"train_lr": 9.99999999999915e-05, "train_cpu_mem": 404.4419188369311, "train_cpu_mem_all": 503.27800369262695, "train_gpu_mem": 63.70607614517212, "train_mask_ratio": 0.8999999999999349, "train_loss": 0.10093986269070035, "epoch": 31}

@@ -30,7 +30,7 @@ srun python -u ../../finetune.py \
     --accum_iter 2 \
     --epochs 100000 \
     --num_frames 16 \
-    --input_size 224 \
+    --img_size 224 \
     --pin_mem \
     --num_workers 16 \
     --t_patch_size 2 \
