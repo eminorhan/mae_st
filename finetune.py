@@ -21,7 +21,7 @@ import util.misc as misc
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-from torch.utils.data import DistributedSampler, DataLoader
+from torch.utils.data import DistributedSampler, SequentialSampler, DataLoader
 from iopath.common.file_io import g_pathmgr as pathmgr
 from engine_finetune import evaluate, train_one_epoch
 import util.lr_decay as lrd
@@ -30,7 +30,6 @@ from util.decoder.mixup import MixUp as MixVideo
 from util.kinetics import Kinetics
 from util.logging import master_print as print
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
-from util.pos_embed import interpolate_pos_embed
 
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 from timm.models.layers import trunc_normal_
@@ -200,13 +199,16 @@ def main(args):
     sampler_train = DistributedSampler(dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True)
     print(f"Sampler_train = {sampler_train}")
 
-    if len(dataset_val) % num_tasks != 0:
-        print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number."
-              "This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
-        
-    sampler_val = DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+    # if len(dataset_val) % num_tasks != 0:
+    #     print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number."
+    #           "This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
+
     data_loader_train = DataLoader(dataset_train, sampler=sampler_train, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=True)
-    data_loader_val = DataLoader(dataset_val, sampler=sampler_val, batch_size=16*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
+
+    # sampler_val = SequentialSampler(dataset_val)
+    # data_loader_val = DataLoader(dataset_val, sampler=sampler_val, batch_size=16*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
+    sampler_val = DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+    data_loader_val = DataLoader(dataset_val, sampler=sampler_val, batch_size=8*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
 
     mixup_fn = None
     mixup_active = args.mixup > 0 or args.cutmix > 0.0 or args.cutmix_minmax is not None
@@ -230,9 +232,6 @@ def main(args):
             if (k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape):
                 print(f"Removing key {k} from pretrained checkpoint")
                 del checkpoint_model[k]
-
-        # # interpolate position embedding
-        # interpolate_pos_embed(model, checkpoint_model)
 
         # load pre-trained model
         msg = model.load_state_dict(checkpoint_model, strict=False)
@@ -291,7 +290,7 @@ def main(args):
         
         train_stats = train_one_epoch(model, criterion, data_loader_train, optimizer, device, epoch, loss_scaler, args.clip_grad, mixup_fn, args=args, fp32=args.fp32)
         test_stats = evaluate(data_loader_val, model, device, fp32=args.fp32)
-        print(f"Accuracy of the model on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
+        print(f"Accuracy of the model on the {len(dataset_val)} test images (top-5): {test_stats['acc5']:.1f}%")
 
         if args.output_dir and test_stats["acc5"] > max_accuracy:
             print("Improvement in max test accuracy. Saving model!")

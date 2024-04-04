@@ -147,9 +147,6 @@ def main(args):
     model = models_mae.__dict__[args.model](**vars(args))
     model.to(device)
 
-    # # compile model (requires > pytorch 2.0)
-    # model = torch.compile(model)
-
     model_without_ddp = model
     print(f"Model: {model_without_ddp}")
     print(f"Number of params (M): {(sum(p.numel() for p in model_without_ddp.parameters() if p.requires_grad) / 1.e6)}")

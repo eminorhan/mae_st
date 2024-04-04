@@ -5,24 +5,24 @@
 #SBATCH --gres=gpu:a100:4
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=480GB
-#SBATCH --time=12:00:00
-#SBATCH --job-name=finetune_maest_sayavakepicutego4d_448_ssv2
-#SBATCH --output=finetune_maest_sayavakepicutego4d_448_ssv2_%A_%a.out
+#SBATCH --time=48:00:00
+#SBATCH --job-name=finetune_maest_sayavakepicutego4d_448_kinetics
+#SBATCH --output=finetune_maest_sayavakepicutego4d_448_kinetics_%A_%a.out
 #SBATCH --array=0
 
 export MASTER_ADDR=$(hostname -s)
 export MASTER_PORT=$(shuf -i 10000-65500 -n 1)
 export WORLD_SIZE=4
 
-SHOT=50
+SHOT=10
 
 # vit-h/14 sampling rate 8
 srun python -u ../../finetune.py \
-    --train_dir /vast/eo41/ssv2/train_${SHOT}shot/train \
-    --val_dir /vast/eo41/ssv2/val \
-    --datafile_dir ../../datafiles/ssv2-${SHOT}shot \
-    --num_classes 174 \
-    --save_prefix "sayavakepicutego4d_448_ssv2-${SHOT}shot" \
+    --train_dir /vast/eo41/data/kinetics700-${SHOT}shot/train \
+    --val_dir /vast/eo41/data/kinetics700/val \
+    --datafile_dir ../../datafiles/kinetics-${SHOT}shot \
+    --num_classes 700 \
+    --save_prefix "sayavakepicutego4d_448_kinetics-${SHOT}shot" \
     --output_dir ../../models_finetuned \
     --model vit_huge_patch14 \
     --finetune ../../models/sayavakepicutego4d_448/sayavakepicutego4d_vith14_448_8_1_16_pixloss_m095_accum1_Adam0001.pth \
