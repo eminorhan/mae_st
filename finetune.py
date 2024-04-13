@@ -197,13 +197,8 @@ def main(args):
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
     sampler_train = DistributedSampler(dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True)
-    print(f"Sampler_train = {sampler_train}")
-
-    # if len(dataset_val) % num_tasks != 0:
-    #     print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number."
-    #           "This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
-
     data_loader_train = DataLoader(dataset_train, sampler=sampler_train, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=True)
+    print(f"Sampler_train = {sampler_train}")
 
     # sampler_val = SequentialSampler(dataset_val)
     # data_loader_val = DataLoader(dataset_val, sampler=sampler_val, batch_size=16*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)

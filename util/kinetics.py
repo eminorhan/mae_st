@@ -286,7 +286,7 @@ class Kinetics(torch.utils.data.Dataset):
                 target_fps=self._target_fps,
                 max_spatial_scale=min_scale,
                 use_offset=self._use_offset_sampling,
-                rigid_decode_all_video=self.mode in ["finetune", "val"],  # NOTE: removed "pretrain" from here to enable selective decoding for pretraining videos
+                rigid_decode_all_video=self.mode in ["val"],  # NOTE: removed "pretrain" and "finetune" from here to enable selective decoding of videos
             )
 
             # If decoding fails (wrong format, video is too short, and etc), select another video.
