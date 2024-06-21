@@ -302,7 +302,7 @@ def get_last_checkpoint(args):
         return os.path.join(d, name)
 
 
-def load_model(args, model_without_ddp, optimizer, loss_scaler):
+def load_model(args, model_without_ddp, optimizer, loss_scaler, with_optim_sched=False):
     if not args.resume:
         args.resume = get_last_checkpoint(args)
     if args.resume:
@@ -316,12 +316,13 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler):
         else:
             msg = model_without_ddp.load_state_dict(checkpoint["model_state"], strict=False)
         print(f"Resume checkpoint {args.resume} with message {msg}")
-        if ("optimizer" in checkpoint and "epoch" in checkpoint and not (hasattr(args, "eval") and args.eval)):
-            optimizer.load_state_dict(checkpoint["optimizer"]) if "optimizer" in checkpoint else optimizer.load_state_dict(checkpoint["optimizer_state"])
-            args.start_epoch = checkpoint["epoch"] + 1
-            if "scaler" in checkpoint:
-                loss_scaler.load_state_dict(checkpoint["scaler"])
-            print("With optim & sched!")
+        if with_optim_sched:
+            if ("optimizer" in checkpoint and "epoch" in checkpoint and not (hasattr(args, "eval") and args.eval)):
+                optimizer.load_state_dict(checkpoint["optimizer"]) if "optimizer" in checkpoint else optimizer.load_state_dict(checkpoint["optimizer_state"])
+                args.start_epoch = checkpoint["epoch"] + 1
+                if "scaler" in checkpoint:
+                    loss_scaler.load_state_dict(checkpoint["scaler"])
+                print("With optim & sched!")
 
 
 def all_reduce_mean(x):

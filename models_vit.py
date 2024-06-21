@@ -11,9 +11,10 @@
 # --------------------------------------------------------
 
 from functools import partial
-
+import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from util.logging import master_print as print
 
 from util.video_vit import Attention, Block, PatchEmbed
@@ -109,10 +110,26 @@ class VisionTransformer(nn.Module):
             "pos_embed_class",
         }
 
+    def interpolate_pos_encoding(self, C, L, w, h):
+        N = self.pos_embed_spatial.shape[1]
+        if L == N and w == h:
+            return self.pos_embed_spatial
+        patch_pos_embed = self.pos_embed_spatial
+        w0 = w // self.patch_embed.patch_size[0]
+        h0 = h // self.patch_embed.patch_size[1]
+        # we add a small number to avoid floating point error in the interpolation
+        w0, h0 = w0 + 0.1, h0 + 0.1
+        patch_pos_embed = F.interpolate(patch_pos_embed.reshape(1, int(math.sqrt(N)), int(math.sqrt(N)), C).permute(0, 3, 1, 2), scale_factor=(w0 / math.sqrt(N), h0 / math.sqrt(N)), mode='bicubic')
+        assert int(w0) == patch_pos_embed.shape[-2] and int(h0) == patch_pos_embed.shape[-1]
+        patch_pos_embed = patch_pos_embed.permute(0, 2, 3, 1).view(1, -1, C)
+        return patch_pos_embed
+    
     def forward(self, x):
+        _, _, _, w, h = x.shape  # spatial dimensions of raw image
         # embed patches
         x = self.patch_embed(x)
         N, T, L, C = x.shape  # T: temporal; L: spatial
+        pos_embed_spatial = self.interpolate_pos_encoding(C, L, w, h)
 
         x = x.view([N, T * L, C])
 
@@ -123,7 +140,7 @@ class VisionTransformer(nn.Module):
             x = torch.cat((cls_tokens, x), dim=1)
 
         if self.sep_pos_embed:
-            pos_embed = self.pos_embed_spatial.repeat(1, self.input_size[0], 1) + torch.repeat_interleave(self.pos_embed_temporal, self.input_size[1] * self.input_size[2], dim=1)
+            pos_embed = pos_embed_spatial.repeat(1, self.input_size[0], 1) + torch.repeat_interleave(self.pos_embed_temporal, pos_embed_spatial.shape[1], dim=1)
             if self.cls_embed:
                 pos_embed = torch.cat([self.pos_embed_class.expand(pos_embed.shape[0], -1, -1), pos_embed], 1)
         else:
@@ -191,6 +208,47 @@ class VisionTransformer(nn.Module):
             else:
                 # return attention of the last block
                 return blk(x, return_attention=True)
+
+    def get_last_activation(self, x):
+        _, _, _, w, h = x.shape  # spatial dimensions of raw image
+        # embed patches
+        x = self.patch_embed(x)
+        N, T, L, C = x.shape  # T: temporal; L: spatial
+        pos_embed_spatial = self.interpolate_pos_encoding(C, L, w, h)
+
+        x = x.view([N, T * L, C])
+
+        # append cls token
+        if self.cls_embed:
+            cls_token = self.cls_token
+            cls_tokens = cls_token.expand(x.shape[0], -1, -1)
+            x = torch.cat((cls_tokens, x), dim=1)
+
+        if self.sep_pos_embed:
+            pos_embed = pos_embed_spatial.repeat(1, self.input_size[0], 1) + torch.repeat_interleave(self.pos_embed_temporal, pos_embed_spatial.shape[1], dim=1)
+            if self.cls_embed:
+                pos_embed = torch.cat([self.pos_embed_class.expand(pos_embed.shape[0], -1, -1), pos_embed], 1)
+        else:
+            pos_embed = self.pos_embed[:, :, :]
+        x = x + pos_embed
+
+        # reshape to [N, T, L, C] or [N, T*L, C]
+        requires_t_shape = (
+            len(self.blocks) > 0  # support empty decoder
+            and hasattr(self.blocks[0].attn, "requires_t_shape")
+            and self.blocks[0].attn.requires_t_shape
+        )
+        if requires_t_shape:
+            x = x.view([N, T, L, C])
+
+        # apply Transformer blocks
+        for blk in self.blocks:
+            x = blk(x)
+
+        if requires_t_shape:
+            x = x.view([N, T * L, C])
+
+        return x
 
 
 def vit_huge_patch14(**kwargs):

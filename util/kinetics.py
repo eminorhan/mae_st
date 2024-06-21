@@ -78,9 +78,9 @@ class Kinetics(torch.utils.data.Dataset):
         train_random_horizontal_flip=True,
         train_color_jitter=False,
         # test setting, multi crops
-        test_num_ensemble_views=5,
+        test_num_ensemble_views=10,
         test_num_spatial_crops=3,
-        test_crop_size=256,
+        test_crop_size=224,
         # norm setting
         mean=(0.45, 0.45, 0.45),
         std=(0.225, 0.225, 0.225),
@@ -162,6 +162,7 @@ class Kinetics(torch.utils.data.Dataset):
 
         print(self)
         print(locals())
+        print(f"val_mode: {self.mode}")
 
         # For training or validation mode, one single clip is sampled from every video. 
         # For testing, NUM_ENSEMBLE_VIEWS clips are sampled from every video. 
@@ -258,6 +259,7 @@ class Kinetics(torch.utils.data.Dataset):
             assert len({min_scale, max_scale}) == 1
         else:
             raise NotImplementedError("Does not support {} mode".format(self.mode))
+        
         sampling_rate = self._sampling_rate
         # Try to decode and sample a clip from a video. If the video can not be
         # decoded, repeatly find a random video replacement that can be decoded.
@@ -286,7 +288,7 @@ class Kinetics(torch.utils.data.Dataset):
                 target_fps=self._target_fps,
                 max_spatial_scale=min_scale,
                 use_offset=self._use_offset_sampling,
-                rigid_decode_all_video=self.mode in ["val"],  # NOTE: removed "pretrain" and "finetune" from here to enable selective decoding of videos
+                rigid_decode_all_video=self.mode in [],  # NOTE: removed "pretrain", "finetune", "val" from here to enable selective decoding of videos
             )
 
             # If decoding fails (wrong format, video is too short, and etc), select another video.
