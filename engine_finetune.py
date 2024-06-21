@@ -46,7 +46,6 @@ def train_one_epoch(
     optimizer.zero_grad()
 
     for data_iter_step, (samples, targets) in enumerate(metric_logger.log_every(data_loader, len(data_loader) // num_logs_per_epoch, header)):
-
         # we use a per iteration (instead of per epoch) lr scheduler
         if data_iter_step % accum_iter == 0:
             lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
@@ -111,10 +110,14 @@ def evaluate(data_loader, model, device, fp32=True):
     # switch to evaluation mode
     model.eval()
 
+    # TODO: NEED TO FIX THE ENUMERATE RETURN TUPLE 
     for _, (images, target) in enumerate(metric_logger.log_every(data_loader, len(data_loader) // num_logs_per_epoch, header)):
 
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
+
+        # print('Images shape:', images.shape)
+        # print('Target shape:', target.shape)
 
         if len(images.shape) == 6:
             b, r, c, t, h, w = images.shape

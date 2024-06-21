@@ -21,7 +21,7 @@ import util.misc as misc
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-from torch.utils.data import DistributedSampler, DataLoader
+from torch.utils.data import DistributedSampler, SequentialSampler, DataLoader
 from iopath.common.file_io import g_pathmgr as pathmgr
 from engine_finetune import evaluate, train_one_epoch
 import util.lr_decay as lrd
@@ -30,10 +30,8 @@ from util.decoder.mixup import MixUp as MixVideo
 from util.kinetics import Kinetics
 from util.logging import master_print as print
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
-from util.pos_embed import interpolate_pos_embed
 
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
-from timm.models.layers import trunc_normal_
 
 def get_args_parser():
     parser = argparse.ArgumentParser("MAE fine-tuning for image classification", add_help=False)
@@ -44,13 +42,13 @@ def get_args_parser():
 
     # Model parameters
     parser.add_argument("--model", default="vit_large_patch16", type=str, metavar="MODEL", help="Name of model to train")
-    parser.add_argument("--input_size", default=224, type=int, help="images input size")
+    parser.add_argument("--img_size", default=224, type=int, help="images input size")
     parser.add_argument("--dropout", type=float, default=0.3)
     parser.add_argument("--drop_path_rate", type=float, default=0.1, metavar="PCT", help="Drop path rate")
 
     # Optimizer parameters
     parser.add_argument("--clip_grad", type=float, default=None, metavar="NORM", help="Clip gradient norm (default: None, no clipping)")
-    parser.add_argument("--weight_decay", type=float, default=0.05, help="weight decay (default: 0.05)")
+    parser.add_argument("--weight_decay", type=float, default=0.0001, help="weight decay (default: 0.05)")
     parser.add_argument("--lr", type=float, default=None, metavar="LR", help="learning rate (absolute lr)")
     parser.add_argument("--blr", type=float, default=1e-3, metavar="LR", help="base learning rate: absolute_lr = base_lr * total_batch_size / 256")
     parser.add_argument("--layer_decay", type=float, default=0.8, help="layer-wise lr decay from ELECTRA/BEiT")
@@ -77,7 +75,7 @@ def get_args_parser():
     parser.add_argument("--mixup_mode", type=str, default="batch", help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
 
     # * Finetuning params
-    parser.add_argument("--finetune", default="", help="finetune from checkpoint")
+    parser.add_argument("--resume", default="", help="finetune from checkpoint")
     parser.add_argument("--global_pool", action="store_true")
     parser.set_defaults(global_pool=True)
     parser.add_argument("--cls_token", action="store_false", dest="global_pool", help="Use class token instead of global pool for classification")
@@ -88,13 +86,14 @@ def get_args_parser():
     parser.add_argument("--output_dir", default="./output_dir", help="path where to save, empty for no saving")
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")
     parser.add_argument("--seed", default=0, type=int)
-    parser.add_argument("--resume", default="", help="resume from checkpoint")
     parser.add_argument("--start_epoch", default=0, type=int, metavar="N", help="start epoch")
     parser.add_argument("--eval", action="store_true", help="Perform evaluation only")
     parser.add_argument("--num_workers", default=16, type=int)
     parser.add_argument("--pin_mem", action="store_true", help="Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.")
     parser.add_argument("--no_pin_mem", action="store_false", dest="pin_mem")
     parser.set_defaults(pin_mem=True)
+    parser.add_argument("--val_mode", type=str, default="val", help="Eval mode")
+
 
     # distributed training parameters
     parser.add_argument("--world_size", default=1, type=int, help="number of distributed processes")
@@ -116,9 +115,10 @@ def get_args_parser():
     parser.add_argument("--sep_pos_embed", action="store_true")
     parser.set_defaults(sep_pos_embed=True)
     parser.add_argument("--fp32", action="store_true")
-    parser.set_defaults(fp32=True)
+    parser.set_defaults(fp32=False)
     parser.add_argument("--jitter_scales_relative", default=[0.08, 1.0], type=float, nargs="+")
     parser.add_argument("--jitter_aspect_relative", default=[0.75, 1.3333], type=float, nargs="+")
+    parser.add_argument("--train_jitter_scales", default=[256, 320], type=int, nargs="+")
     parser.add_argument("--cls_embed", action="store_true")
     parser.set_defaults(cls_embed=True)
 
@@ -171,7 +171,8 @@ def main(args):
         datafile_dir=args.datafile_dir,
         sampling_rate=args.sampling_rate,
         num_frames=args.num_frames,
-        train_jitter_scales=(256, 320),
+        train_jitter_scales=tuple(args.train_jitter_scales),
+        train_crop_size=args.img_size,
         repeat_aug=args.repeat_aug,
         pretrain_rand_erase_prob=args.reprob,
         pretrain_rand_erase_mode=args.remode,
@@ -183,11 +184,13 @@ def main(args):
         jitter_scales_relative=args.jitter_scales_relative,
     )
     dataset_val = Kinetics(
-        mode="val",
+        mode=args.val_mode,
         datafile_dir=args.datafile_dir,
         sampling_rate=args.sampling_rate,
         num_frames=args.num_frames,
-        train_jitter_scales=(256, 320),
+        train_jitter_scales=tuple(args.train_jitter_scales),
+        train_crop_size=args.img_size,
+        test_crop_size=args.img_size,
         jitter_aspect_relative=args.jitter_aspect_relative,
         jitter_scales_relative=args.jitter_scales_relative,
     )
@@ -195,15 +198,13 @@ def main(args):
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
     sampler_train = DistributedSampler(dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True)
-    print("Sampler_train = %s" % str(sampler_train))
-
-    if len(dataset_val) % num_tasks != 0:
-        print("Warning: Enabling distributed evaluation with an eval dataset not divisible by process number."
-              "This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.")
-        
-    sampler_val = DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
     data_loader_train = DataLoader(dataset_train, sampler=sampler_train, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=True)
-    data_loader_val = DataLoader(dataset_val, sampler=sampler_val, batch_size=23*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
+    print(f"Sampler_train = {sampler_train}")
+
+    # sampler_val = SequentialSampler(dataset_val)
+    # data_loader_val = DataLoader(dataset_val, sampler=sampler_val, batch_size=16*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
+    sampler_val = DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+    data_loader_val = DataLoader(dataset_val, sampler=sampler_val, batch_size=4*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
 
     mixup_fn = None
     mixup_active = args.mixup > 0 or args.cutmix > 0.0 or args.cutmix_minmax is not None
@@ -212,50 +213,21 @@ def main(args):
         mixup_fn = MixVideo(mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, mix_prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, label_smoothing=args.smoothing, num_classes=args.num_classes)
 
     model = models_vit.__dict__[args.model](**vars(args))
-
-    if misc.get_last_checkpoint(args) is None and args.finetune and not args.eval:
-        with pathmgr.open(args.finetune, "rb") as f:
-            checkpoint = torch.load(f, map_location="cpu")
-
-        print("Load pre-trained checkpoint from: %s" % args.finetune)
-        if "model" in checkpoint.keys():
-            checkpoint_model = checkpoint["model"]
-        else:
-            checkpoint_model = checkpoint["model_state"]
-        state_dict = model.state_dict()
-        for k in ["head.weight", "head.bias"]:
-            if (k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape):
-                print(f"Removing key {k} from pretrained checkpoint")
-                del checkpoint_model[k]
-
-        # # interpolate position embedding
-        # interpolate_pos_embed(model, checkpoint_model)
-
-        # load pre-trained model
-        msg = model.load_state_dict(checkpoint_model, strict=False)
-        print(msg)
-
-        # manually initialize fc layer
-        trunc_normal_(model.head.weight, std=2e-5)
-
     model.to(device)
-
     model_without_ddp = model
-    n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Model: {model_without_ddp}")
+    print(f"Number of params (M): {(sum(p.numel() for p in model_without_ddp.parameters() if p.requires_grad) / 1.e6)}")
 
-    print("model = %s" % str(model_without_ddp))
-    print("number of params (M): %.2f" % (n_parameters / 1.0e6))
-
+    # effective batch size
     eff_batch_size = (args.batch_size_per_gpu * args.accum_iter * misc.get_world_size() * args.repeat_aug)
+    print(f"Effective batch size: {eff_batch_size} = {args.batch_size_per_gpu} batch_size_per_gpu * {args.accum_iter} accum_iter * {misc.get_world_size()} GPUs * {args.repeat_aug} repeat_augs")
 
+    # effective lr
     if args.lr is None:  # only base_lr is specified
         args.lr = args.blr * eff_batch_size / 256
+    print(f"Effective lr: {args.lr}")
 
-    print("base lr: %.2e" % (args.lr * 256 / eff_batch_size))
-    print("actual lr: %.2e" % args.lr)
-    print("accumulate grad iterations: %d" % args.accum_iter)
-    print("effective batch size: %d" % eff_batch_size)
-
+    # wrap model in ddp
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[torch.cuda.current_device()])
     model_without_ddp = model.module
 
@@ -264,6 +236,9 @@ def main(args):
     optimizer = torch.optim.AdamW(param_groups, lr=args.lr)
     loss_scaler = NativeScaler(fp32=args.fp32)
 
+    misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+
+    # build criterion
     if mixup_fn is not None:
         # smoothing is handled with mixup label transform
         criterion = SoftTargetCrossEntropy()
@@ -271,11 +246,10 @@ def main(args):
         criterion = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
     else:
         criterion = torch.nn.CrossEntropyLoss()
-
-    print("criterion = %s" % str(criterion))
+    print(f"Criterion = {criterion}")
 
     if args.eval:
-        test_stats = evaluate(data_loader_val, model, device)
+        test_stats = evaluate(data_loader_val, model, device, fp32=args.fp32)
         print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
         exit(0)
 
@@ -289,17 +263,17 @@ def main(args):
         data_loader_train.sampler.set_epoch(epoch)
         
         train_stats = train_one_epoch(model, criterion, data_loader_train, optimizer, device, epoch, loss_scaler, args.clip_grad, mixup_fn, args=args, fp32=args.fp32)
-        test_stats = evaluate(data_loader_val, model, device)
-        print(f"Accuracy of the model on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
+        test_stats = evaluate(data_loader_val, model, device, fp32=args.fp32)
+        print(f"Accuracy of the model on the {len(dataset_val)} test images (top-5): {test_stats['acc5']:.1f}%")
 
-        if args.output_dir and test_stats["acc1"] > max_accuracy:
-            print('Improvement in max test accuracy. Saving model!')
+        if args.output_dir and test_stats["acc5"] > max_accuracy:
+            print("Improvement in max test accuracy. Saving model!")
             checkpoint_path = misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
 
-        max_accuracy = max(max_accuracy, test_stats["acc1"])
+        max_accuracy = max(max_accuracy, test_stats["acc5"])
         print(f"Max accuracy: {max_accuracy:.2f}%")
 
-        log_stats = {**{f"train_{k}": v for k, v in train_stats.items()}, **{f"test_{k}": v for k, v in test_stats.items()}, "epoch": epoch, "n_parameters": n_parameters}
+        log_stats = {**{f"train_{k}": v for k, v in train_stats.items()}, **{f"test_{k}": v for k, v in test_stats.items()}, "epoch": epoch}
 
         if args.output_dir and misc.is_main_process():
             with pathmgr.open(f"{args.output_dir}/{args.save_prefix}_log.txt", "a") as f:
@@ -319,7 +293,7 @@ if __name__ == '__main__':
     train_files = find_mp4_files(directory=args.train_dir)
     write_csv(video_files=train_files, save_dir=args.datafile_dir, save_name='train')
     val_files = find_mp4_files(directory=args.val_dir)
-    write_csv(video_files=val_files, save_dir=args.datafile_dir, save_name='val')
+    write_csv(video_files=val_files, save_dir=args.datafile_dir, save_name=args.val_mode)
 
     # finetune
     main(args)

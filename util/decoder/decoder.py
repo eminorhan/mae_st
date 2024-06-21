@@ -169,6 +169,7 @@ def decode(
 
         if v_frames.shape == torch.Size([0]):
             # failed selective decoding
+            # print('Failed selective decoding, reverting to all decode')
             decode_all_video = True
             video_start_pts, video_end_pts = 0, -1
             v_frames, _ = io._read_video_from_memory(

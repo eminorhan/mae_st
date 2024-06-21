@@ -45,7 +45,7 @@ def get_args_parser():
 
     # Model parameters
     parser.add_argument("--model", default="vit_large_patch16", type=str, metavar="MODEL", help="Name of model to train")
-    parser.add_argument("--input_size", default=224, type=int, help="images input size")
+    parser.add_argument("--img_size", default=224, type=int, help="images input size")
     parser.add_argument("--dropout", type=float, default=0.3)
     parser.add_argument("--drop_path_rate", type=float, default=0.1, metavar="PCT", help="Drop path rate")
 
@@ -76,7 +76,7 @@ def get_args_parser():
     parser.add_argument("--frac_retained", default=1.0, type=float, choices=[0.010147, 0.02, 0.03, 0.05, 0.1, 1.0], help="fraction of train data retained for finetuning")
 
     # * Finetuning params
-    parser.add_argument("--finetune", default="", help="finetune from checkpoint")
+    parser.add_argument("--resume", default="", help="finetune from checkpoint")
     parser.add_argument("--global_pool", action="store_true")
     parser.add_argument("--cls_token", action="store_false", dest="global_pool", help="Use class token instead of global pool for classification")
     parser.set_defaults(global_pool=True)
@@ -84,7 +84,6 @@ def get_args_parser():
     parser.add_argument("--output_dir", default="./output_dir", help="path where to save, empty for no saving")
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")
     parser.add_argument("--seed", default=0, type=int)
-    parser.add_argument("--resume", default="", help="resume from checkpoint")
     parser.add_argument("--start_epoch", default=0, type=int, metavar="N", help="start epoch")
     parser.add_argument("--eval", action="store_true", help="Perform evaluation only")
     parser.add_argument("--num_workers", default=16, type=int)
@@ -109,7 +108,7 @@ def get_args_parser():
     parser.add_argument("--sep_pos_embed", action="store_true")
     parser.set_defaults(sep_pos_embed=True)
     parser.add_argument("--fp32", action="store_true")
-    parser.set_defaults(fp32=True)
+    parser.set_defaults(fp32=False)
     parser.add_argument("--cls_embed", action="store_true")
     parser.set_defaults(cls_embed=True)
 
@@ -133,15 +132,15 @@ def main(args):
     # ============ preparing data ... ============
     # validation transforms
     val_transform = Compose([
-        Resize(args.input_size + 32, interpolation=3),
-        CenterCrop(args.input_size),
+        Resize(args.img_size + 32, interpolation=3),
+        CenterCrop(args.img_size),
         ToTensor(),
         Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
     ])
 
     # training transforms
     train_transform = Compose([
-        RandomResizedCrop(args.input_size),
+        RandomResizedCrop(args.img_size),
         RandomHorizontalFlip(),
         ToTensor(),
         Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
@@ -149,7 +148,7 @@ def main(args):
 
     val_dataset = ImageFolder(args.val_data_path, transform=val_transform)
     sampler_val = DistributedSampler(val_dataset, num_replicas=num_tasks, rank=global_rank, shuffle=False)
-    val_loader = DataLoader(val_dataset, sampler=sampler_val, batch_size=23*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=True, drop_last=False)  # note we use a larger batch size for val
+    val_loader = DataLoader(val_dataset, sampler=sampler_val, batch_size=8*args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=True, drop_last=False)  # note we use a larger batch size for val
 
     train_dataset = ImageFolder(args.train_data_path, transform=train_transform)
     # few-shot finetuning
@@ -175,49 +174,18 @@ def main(args):
         mixup_fn = MixVideo(mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, mix_prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, label_smoothing=args.smoothing, num_classes=args.num_classes)
 
     model = models_vit.__dict__[args.model](**vars(args))
-
-    if misc.get_last_checkpoint(args) is None and args.finetune and not args.eval:
-        with pathmgr.open(args.finetune, "rb") as f:
-            checkpoint = torch.load(f, map_location="cpu")
-
-        print("Load pre-trained checkpoint from: %s" % args.finetune)
-        if "model" in checkpoint.keys():
-            checkpoint_model = checkpoint["model"]
-        else:
-            checkpoint_model = checkpoint["model_state"]
-        state_dict = model.state_dict()
-        for k in ["head.weight", "head.bias"]:
-            if (k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape):
-                print(f"Removing key {k} from pretrained checkpoint")
-                del checkpoint_model[k]
-
-        # interpolate position embedding
-        interpolate_pos_embed(model, checkpoint_model)
-
-        # load pre-trained model
-        msg = model.load_state_dict(checkpoint_model, strict=False)
-        print(msg)
-
-        # manually initialize fc layer
-        trunc_normal_(model.head.weight, std=2e-5)
-
     model.to(device)
-
     model_without_ddp = model
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-
-    print("model = %s" % str(model_without_ddp))
-    print("number of params (M): %.2f" % (n_parameters / 1.0e6))
+    print(f"Model: {model_without_ddp}")
+    print(f"Number of params (M): {(sum(p.numel() for p in model_without_ddp.parameters() if p.requires_grad) / 1.e6)}")
 
     eff_batch_size = (args.batch_size_per_gpu * args.accum_iter * misc.get_world_size())
+    print(f"Effective batch size: {eff_batch_size} = {args.batch_size_per_gpu} batch_size_per_gpu * {args.accum_iter} accum_iter * {misc.get_world_size()} GPUs")
 
     if args.lr is None:  # only base_lr is specified
         args.lr = args.blr * eff_batch_size / 256
-
-    print("base lr: %.2e" % (args.lr * 256 / eff_batch_size))
-    print("actual lr: %.2e" % args.lr)
-    print("accumulate grad iterations: %d" % args.accum_iter)
-    print("effective batch size: %d" % eff_batch_size)
+    print(f"Effective lr: {args.lr}")
 
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[torch.cuda.current_device()])
     model_without_ddp = model.module
@@ -226,6 +194,8 @@ def main(args):
     param_groups = lrd.param_groups_lrd(model_without_ddp, args.weight_decay, no_weight_decay_list=model_without_ddp.no_weight_decay(), layer_decay=args.layer_decay)    
     optimizer = torch.optim.AdamW(param_groups, lr=args.lr)
     loss_scaler = NativeScaler(fp32=args.fp32)
+
+    misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
     if mixup_fn is not None:
         # smoothing is handled with mixup label transform
@@ -251,22 +221,26 @@ def main(args):
         
         train_loader.sampler.set_epoch(epoch)
 
+        # train
         train_stats = train_one_epoch(model, criterion, train_loader, optimizer, device, epoch, args.num_frames, loss_scaler, args.clip_grad, mixup_fn, args=args, fp32=args.fp32)
-        test_stats = evaluate(val_loader, model, device, args.num_frames)
-        print(f"Accuracy of the model on the {len(val_dataset)} test images: {test_stats['acc1']:.1f}%")
 
-        if args.output_dir and test_stats["acc1"] > max_accuracy:
-            print('Improvement in max test accuracy. Saving model!')
-            checkpoint_path = misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
+        if epoch > 30:  # start saving after epoch 30 for efficiency
+            # evaluate
+            test_stats = evaluate(val_loader, model, device, args.num_frames)
+            print(f"Accuracy of the model on the {len(val_dataset)} test images: {test_stats['acc1']:.1f}%")
 
-        max_accuracy = max(max_accuracy, test_stats["acc1"])
-        print(f"Max accuracy: {max_accuracy:.2f}%")
+            if args.output_dir and test_stats["acc1"] > max_accuracy:
+                print('Improvement in max test accuracy. Saving model!')
+                checkpoint_path = misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
 
-        log_stats = {**{f"train_{k}": v for k, v in train_stats.items()}, **{f"test_{k}": v for k, v in test_stats.items()}, "epoch": epoch, "n_parameters": n_parameters}
+            max_accuracy = max(max_accuracy, test_stats["acc1"])
+            print(f"Max accuracy: {max_accuracy:.2f}%")
 
-        if args.output_dir and misc.is_main_process():
-            with pathmgr.open(f"{args.output_dir}/{args.save_prefix}_log.txt", "a") as f:
-                f.write(json.dumps(log_stats) + "\n")
+            log_stats = {**{f"train_{k}": v for k, v in train_stats.items()}, **{f"test_{k}": v for k, v in test_stats.items()}, "epoch": epoch}
+
+            if args.output_dir and misc.is_main_process():
+                with pathmgr.open(f"{args.output_dir}/{args.save_prefix}_log.txt", "a") as f:
+                    f.write(json.dumps(log_stats) + "\n")
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
