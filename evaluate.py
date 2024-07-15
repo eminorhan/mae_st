@@ -32,7 +32,7 @@ def get_args_parser():
 
     # Model parameters
     parser.add_argument("--model", default="vit_large_patch16", type=str, metavar="MODEL", help="Name of model to train")
-    parser.add_argument("--input_size", default=224, type=int, help="images input size")
+    parser.add_argument("--img_size", default=224, type=int, help="images input size")
     parser.add_argument("--dropout", type=float, default=0.5)
     parser.add_argument("--drop_path_rate", type=float, default=0.1, metavar="PCT", help="Drop path rate (default: 0.1)")
     parser.add_argument("--num_classes", default=700, type=int, help="number of the classes")
@@ -64,6 +64,7 @@ def get_args_parser():
     parser.add_argument("--pin_mem", action="store_true", help="Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.")
     parser.add_argument("--no_pin_mem", action="store_false", dest="pin_mem")
     parser.set_defaults(pin_mem=True)
+    parser.add_argument("--val_mode", type=str, default="val", help="Eval mode")
 
     # distributed training parameters
     parser.add_argument("--world_size", default=1, type=int, help="number of distributed processes")
@@ -85,9 +86,10 @@ def get_args_parser():
     parser.add_argument("--sep_pos_embed", action="store_true")
     parser.set_defaults(sep_pos_embed=True)
     parser.add_argument("--fp32", action="store_true")
-    parser.set_defaults(fp32=True)
+    parser.set_defaults(fp32=False)
     parser.add_argument("--jitter_scales_relative", default=[1.0, 1.0], type=float, nargs="+")
     parser.add_argument("--jitter_aspect_relative", default=[1.0, 1.0], type=float, nargs="+")
+    parser.add_argument("--train_jitter_scales", default=[256, 320], type=int, nargs="+")
     parser.add_argument("--cls_embed", action="store_true")
     parser.set_defaults(cls_embed=True)
 
@@ -128,7 +130,7 @@ def top_k_accuracy(pred, target, k=1):
     return topk_accuracy
 
 @torch.no_grad()
-def embed(data_loader, model, device, fp32=True):
+def embed(data_loader, model, device, fp32=False):
 
     accs = []
     labels = []
@@ -181,13 +183,15 @@ def main(args):
     cudnn.benchmark = True
 
     dataset_val = Kinetics(
-        mode="val",
+        mode=args.val_mode,
         datafile_dir=args.datafile_dir,
         sampling_rate=args.sampling_rate,
         num_frames=args.num_frames,
-        train_jitter_scales=(256, 320),
+        train_jitter_scales=tuple(args.train_jitter_scales),
+        train_crop_size=args.img_size,
+        test_crop_size=args.img_size,
         jitter_aspect_relative=args.jitter_aspect_relative,
-        jitter_scales_relative=args.jitter_scales_relative,
+        jitter_scales_relative=args.jitter_scales_relative
     )
 
     num_tasks = misc.get_world_size()
@@ -198,8 +202,7 @@ def main(args):
     
     sampler_val = torch.utils.data.DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
 
-    data_loader_val = torch.utils.data.DataLoader(dataset_val, sampler=sampler_val, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, 
-                                                  pin_memory=args.pin_mem, drop_last=False)
+    data_loader_val = torch.utils.data.DataLoader(dataset_val, sampler=sampler_val, batch_size=args.batch_size_per_gpu, num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False)
 
     model = models_vit.__dict__[args.model](**vars(args))
     model.to(device)
