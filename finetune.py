@@ -94,7 +94,6 @@ def get_args_parser():
     parser.set_defaults(pin_mem=True)
     parser.add_argument("--val_mode", type=str, default="val", help="Eval mode")
 
-
     # distributed training parameters
     parser.add_argument("--world_size", default=1, type=int, help="number of distributed processes")
     parser.add_argument("--local_rank", default=-1, type=int)

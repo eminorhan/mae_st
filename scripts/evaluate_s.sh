@@ -14,23 +14,25 @@ export MASTER_ADDR=$(hostname -s)
 export MASTER_PORT=$(shuf -i 10000-65500 -n 1)
 export WORLD_SIZE=1
 
+
+
 # s - ssv2
 srun python -u ../evaluate.py \
     --data_dirs /vast/eo41/ssv2/val \
     --save_prefix "s_ssv2-50shot" \
     --output_dir ../embeddings \
-    --datafile_dir ../datafiles/ssv2 \
-    --num_classes 174 \
+    --datafile_dir ../datafiles/old/ssv2 \
     --model vit_huge_patch14 \
-    --resume ../models_finetuned/ssv2-50shot/s_250ep_ssv2-50shot_16ep.pth \
+    --resume ../models_finetuned/s_ssv2-50shot.pth \
     --batch_size_per_gpu 100 \
     --num_frames 16 \
-    --input_size 224 \
+    --img_size 224 \
     --pin_mem \
     --num_workers 8 \
     --t_patch_size 2 \
     --repeat_aug 1 \
     --sampling_rate 8 \
-    --eval
+    --eval \
+    --num_classes 174
 
 echo "Done"
