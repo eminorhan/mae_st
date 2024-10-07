@@ -241,7 +241,7 @@ if __name__ == '__main__':
         vid = prepare_video(v)
 
         with torch.no_grad():
-            _, _, _, vis = model(vid.unsqueeze(0), mask_ratio=args.mask_ratio, visualize=True, mask_type='random')
+            _, _, _, vis = model(vid.unsqueeze(0), mask_ratio=args.mask_ratio, visualize=True, mask_type='boundary')
 
             vis = vis[0].permute(0, 2, 1, 3, 4)
 
@@ -252,4 +252,4 @@ if __name__ == '__main__':
             vis = torch.cat((a, b, c), 0)
             print(vis.shape)
 
-            save_image(vis[::2], f'{os.path.splitext(os.path.basename(v))[0]}.jpg', nrow=8, padding=1, normalize=True, scale_each=True)
+            save_image(vis, f'{os.path.splitext(os.path.basename(v))[0]}.jpg', nrow=16, padding=1, normalize=True, scale_each=True)

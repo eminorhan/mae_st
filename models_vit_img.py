@@ -369,14 +369,12 @@ class Attention(nn.Module):
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)   # make torchscript happy (cannot use tensor as tuple)
 
-        attn = (q @ k.transpose(-2, -1)) * self.scale
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
+        x = F.scaled_dot_product_attention(q, k, v)  # using flash attention-2
+        x = x.transpose(1, 2).contiguous().view(B, N, C)
 
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
-        return x, attn
+        return x
 
 class LayerScale(nn.Module):
     def __init__(self, dim, init_values=1e-5, inplace=False):
@@ -428,11 +426,8 @@ class Block(nn.Module):
         self.ls2 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
         self.drop_path2 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-    def forward(self, x, return_attention=False):
-        y, attn = self.attn(self.norm1(x))
-        if return_attention:
-            return attn
-        x = x + self.drop_path1(self.ls1(y))
+    def forward(self, x):
+        x = x + self.drop_path1(self.ls1(self.attn(self.norm1(x))))
         x = x + self.drop_path2(self.ls2(self.mlp(self.norm2(x))))
         return x
 
